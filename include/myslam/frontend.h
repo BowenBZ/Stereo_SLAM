@@ -60,7 +60,7 @@ class Frontend {
      * Track with last frame
      * @return num of tracked points
      */
-    int TrackLastFrame();
+    int FindFeaturesInCurrent();
 
     /**
      * estimate current frame's pose
@@ -86,6 +86,13 @@ class Frontend {
      * @return
      */
     int DetectFeatures();
+
+     /**
+     * Find Corresponding Features in image2 to image1
+     */
+    void CalcCorrespondingFeatures(const Frame::Ptr frame1, const Frame::Ptr frame2, const Camera::Ptr camera,
+                                    const Mat &img1, const Mat &img2,
+                                    std::vector<cv::Point2f> &kps2, std::vector<uchar> &status);
 
     /**
      * Find the corresponding features in right image of current_frame_
@@ -128,7 +135,7 @@ class Frontend {
 
     // params
     int num_features_ = 200;
-    int num_features_init_ = 100;
+    int num_features_init_ = 100;       // Required number of initial features
     int num_features_tracking_ = 50;
     int num_features_tracking_bad_ = 20;
     int num_features_needed_for_keyframe_ = 80;

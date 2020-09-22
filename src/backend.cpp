@@ -42,10 +42,12 @@ void Backend::BackendLoop() {
 // BA for poses and space points
 void Backend::Optimize(Map::KeyframesType &keyframes,
                        Map::LandmarksType &landmarks) {
+
+    LOG(INFO) << "Start backend optimizing: keyframes: " << keyframes.size() << " landmarks: " << landmarks.size();
+
     // setup g2o
     typedef g2o::BlockSolver_6_3 BlockSolverType;
-    typedef g2o::LinearSolverCSparse<BlockSolverType::PoseMatrixType>
-        LinearSolverType;
+    typedef g2o::LinearSolverCSparse<BlockSolverType::PoseMatrixType> LinearSolverType;
     auto solver = new g2o::OptimizationAlgorithmLevenberg(
         g2o::make_unique<BlockSolverType>(
             g2o::make_unique<LinearSolverType>()));
@@ -161,7 +163,7 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
         }
     }
 
-    LOG(INFO) << "Outlier/Inlier in optimization: " << cnt_outlier << "/"
+    LOG(INFO) << "Outlier/Inlier in backend optimization: " << cnt_outlier << "/"
               << cnt_inlier;
 
     // Set pose and lanrmark position
