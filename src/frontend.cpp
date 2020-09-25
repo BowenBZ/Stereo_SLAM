@@ -172,7 +172,8 @@ int Frontend::EstimateCurrentPose() {
     std::vector<EdgeProjectionPoseOnly *> edges;
     std::vector<Feature::Ptr> features;
     for (size_t i = 0; i < current_frame_->features_left_.size(); ++i) {
-        auto mp = current_frame_->features_left_[i]->map_point_.lock();
+        // map_point_ is a weak_ptr, the content may not exist
+        auto mp = current_frame_->features_left_[i]->map_point_.lock();    
         if (mp) {
             features.push_back(current_frame_->features_left_[i]);
             EdgeProjectionPoseOnly *edge =
@@ -282,7 +283,7 @@ int Frontend::FindFeaturesInCurrent() {
         if (status[i]) {
             cv::KeyPoint kp(kps_current[i], 7);
             Feature::Ptr feature(new Feature(current_frame_, kp));
-            feature->map_point_ = last_frame_->features_left_[i]->map_point_;
+            feature->map_point_ = last_frame_->features_left_[i]->map_point_;   // passing a weak_ptr
             current_frame_->features_left_.push_back(feature);
             num_good_pts++;
         }
@@ -316,6 +317,7 @@ bool Frontend::StereoInit() {
 
 // Extract GFTT features from current left frame 
 int Frontend::DetectFeatures() {
+    // Mask current key-points' positions to extract new features
     cv::Mat mask(current_frame_->left_img_.size(), CV_8UC1, 255);
     for (auto &feat : current_frame_->features_left_) {
         cv::rectangle(mask, feat->position_.pt - cv::Point2f(10, 10),
