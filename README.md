@@ -1,6 +1,6 @@
 # Stereo_VisualOdometry_Backend
 
-This repo is modified from gaoxiang12's [slambook2/ch13](https://github.com/gaoxiang12/slambook2/tree/master/ch13). This repo is a VO (Visual Odometry) with backend for stereo stream. It could track the camera's poses and the keypoints in space and render them with pangolin.
+This repo is modified from gaoxiang12's [slambook2/ch13](https://github.com/gaoxiang12/slambook2/tree/master/ch13). This repo is a VO (Visual Odometry) with local backend for stereo stream. It could track the camera's poses and the keypoints in space and render them with pangolin.
 
 ![screenshot](png/screenshot.png)
 
@@ -35,9 +35,11 @@ This repos has front end and backend. VO (front end) read frames and calculate t
 * Calculate the pose of current frame
     * Find corresponding `keypoints` in current `left` frame to last `left` frame by optical flow
     * Calculate curren pose by 3D-2D BA
-        * Initial guess is calculated by last 2 frames relative motion and last frame's pose
         * 3D points are `mappoints` of last frame `keypoints`
         * 2D points are current frame `keypoints`
+        * Initial guess is calculated by last 2 frames relative motion and last frame's pose
+        * Vertex is the pose with initial guess
+        * Edges are unary edge with mappoints world coordiante as memebers and 2D key-point pixel coordiante as measurement
         * Update relative motion with final calculated pose and last frame's pose
     * If the number of good tracked point is low, defines current left frame as new `keyframe`
         * Do the initialization work for this two `left` and `right` frames
@@ -46,4 +48,12 @@ This repos has front end and backend. VO (front end) read frames and calculate t
 
 ### Backend
 
-Backend is a BA for active poses and mappoints. This repo only keeps maximum 7 poses (7 keyframes) for optimization. It runs in a spereate process to the front end. Once it is triggered by the front end. It starts the BA optimization. 
+Backend is a Bundle Adjustment for active poses and mappoints. This repo only keeps maximum 7 poses (7 keyframes) and corresponding mappoints for optimization, so it is a local backend. It runs in a spereate process to the front end and listen to trigger from front end. Once it is triggered, it reads active keyframes (poses) and mappoints from the maps and build the optimization problem with G2O library. The structure of graph optimization is as follows.
+
+* Poses Vertex
+   * Uses VO's data as initial value
+* Mappoint Vertex
+   * Uses maps data as initial value
+* Edges
+   * Binaray edge, conntecting to a pose vertex and a mappoint vertex
+   * The pixel coordiante of key-point as the measurement
