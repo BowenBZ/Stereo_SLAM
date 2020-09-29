@@ -43,7 +43,7 @@ void Backend::BackendLoop() {
 void Backend::Optimize(Map::KeyframesType &keyframes,
                        Map::LandmarksType &landmarks) {
 
-    LOG(INFO) << "Start backend optimizing: keyframes: " << keyframes.size() << " landmarks: " << landmarks.size();
+    // LOG(INFO) << "Start backend optimizing: keyframes: " << keyframes.size() << " landmarks: " << landmarks.size();
 
     // setup g2o
     typedef g2o::BlockSolver_6_3 BlockSolverType;
@@ -163,8 +163,8 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
         }
     }
 
-    LOG(INFO) << "Outlier/Inlier in backend optimization: " << cnt_outlier << "/"
-              << cnt_inlier;
+    // LOG(INFO) << "Outlier/Inlier in backend optimization: " << cnt_outlier << "/"
+         //     << cnt_inlier;
 
     // Set pose and lanrmark position
     for (auto &v : vertices) {

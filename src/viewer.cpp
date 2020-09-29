@@ -29,6 +29,8 @@ void Viewer::UpdateMap() {
     assert(map_ != nullptr);
     active_keyframes_ = map_->GetActiveKeyFrames();
     active_landmarks_ = map_->GetActiveMapPoints();
+    all_keyframes_ = map_->GetAllKeyFrames();
+    all_landmarks_ = map_->GetAllMapPoints();
     map_updated_ = true;
 }
 
@@ -48,17 +50,16 @@ void Viewer::ThreadLoop() {
             .SetBounds(0.0, 1.0, 0.0, 1.0, -1024.0f / 768.0f)
             .SetHandler(new pangolin::Handler3D(vis_camera));
 
-    const float blue[3] = {0, 0, 1};
-    const float green[3] = {0, 1, 0};
+    const float current_color[3] = {1.0, 0, 0};
 
     while (!pangolin::ShouldQuit() && viewer_running_) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        // glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         vis_display.Activate(vis_camera);
 
         std::unique_lock<std::mutex> lock(viewer_data_mutex_);
         if (current_frame_) {
-            DrawFrame(current_frame_, blue);
+            DrawFrame(current_frame_, current_color);
             FollowCurrentFrame(vis_camera);
 
             cv::Mat img = PlotFrameImage();
@@ -145,16 +146,18 @@ void Viewer::DrawFrame(Frame::Ptr frame, const float* color) {
 }
 
 void Viewer::DrawMapPoints() {
-    const float color[3] = {0, 1.0, 0};
-    for (auto& kf : active_keyframes_) {
-        DrawFrame(kf.second, color);
+    const float green[3] = {0, 1.0, 0};
+    const float blue[3] = {0, 0, 1.0};
+
+    for (auto& kf : all_keyframes_) {
+        DrawFrame(kf.second, blue);
     }
 
     glPointSize(2);
     glBegin(GL_POINTS);
-    for (auto& landmark : active_landmarks_) {
+    for (auto& landmark : all_landmarks_) {
         auto pos = landmark.second->Pos();
-        glColor3f(color[0], color[1], color[2]);
+        glColor3f(green[0], green[1], green[2]);
         glVertex3d(pos[0], pos[1], pos[2]);
     }
     glEnd();

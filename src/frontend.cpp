@@ -25,7 +25,7 @@ Frontend::Frontend() {
 bool Frontend::AddFrame(myslam::Frame::Ptr frame) {
     current_frame_ = frame;
 
-    LOG(INFO) << "Current VO Status: " << (int)status_;
+    // LOG(INFO) << "Current VO Status: " << (int)status_;
 
     switch (status_) {
         case FrontendStatus::INITING:
@@ -74,15 +74,15 @@ bool Frontend::Track() {
 bool Frontend::InsertKeyframe() {
     if (tracking_inliers_ >= num_features_needed_for_keyframe_) {
         // still have enough features, don't insert keyframe
-        LOG(INFO) << "Still have " << tracking_inliers_ << " features (enough for tracking)";
+        // LOG(INFO) << "Still have " << tracking_inliers_ << " features (enough for tracking)";
         return false;
     }
+
+    // LOG(INFO) << "Features are not enough for tracking\n. Set frame " << current_frame_->id_ << " as new keyframe with ID" << current_frame_->keyframe_id_;
+
     // current frame is a new keyframe
     current_frame_->SetKeyFrame();
     map_->InsertKeyFrame(current_frame_);
-
-    LOG(INFO) << "Features are not enough. Set frame " << current_frame_->id_ << " as new keyframe "
-              << current_frame_->keyframe_id_;
 
     SetObservationsForKeyFrame();
     DetectFeatures();  // detect new features
@@ -139,7 +139,7 @@ int Frontend::TriangulateNewPoints() {
             }
         }
     }
-    LOG(INFO) << "Triangulate to generate new landmarks: " << cnt_triangulated_pts;
+    // LOG(INFO) << "Triangulate to generate new landmarks: " << cnt_triangulated_pts;
     return cnt_triangulated_pts;
 }
 
@@ -220,12 +220,10 @@ int Frontend::EstimateCurrentPose() {
         }
     }
 
-    LOG(INFO) << "Outlier/Inlier in pose estimating: " << cnt_outlier << "/"
-              << features.size() - cnt_outlier;
+    // LOG(INFO) << "Outlier/Inlier in pose estimating: " << cnt_outlier << "/"
+            //   << features.size() - cnt_outlier;
     // Set pose and outlier
     current_frame_->SetPose(vertex_pose->estimate());
-
-    // LOG(INFO) << "Current Pose = \n" << current_frame_->Pose().matrix();
 
     for (auto &feat : features) {
         if (feat->is_outlier_) {
@@ -289,13 +287,13 @@ int Frontend::FindFeaturesInCurrent() {
         }
     }
 
-    LOG(INFO) << "Find " << num_good_pts << " matched features in the current frame to last frame.";
+    // LOG(INFO) << "Find " << num_good_pts << " matched features in the current frame to last frame.";
     return num_good_pts;
 }
 
 // Initialize the map with first left and right frames
 bool Frontend::StereoInit() {
-    LOG(INFO) << "Initializing the map.";
+    // LOG(INFO) << "Initializing the map.";
 
     int num_features_left = DetectFeatures();
     int num_coor_features = FindFeaturesInRight();
@@ -333,7 +331,7 @@ int Frontend::DetectFeatures() {
         cnt_detected++;
     }
 
-    LOG(INFO) << "Detect " << cnt_detected << " new features";
+    // LOG(INFO) << "Detect " << cnt_detected << " new features";
     return cnt_detected;
 }
 
@@ -359,7 +357,7 @@ int Frontend::FindFeaturesInRight() {
             current_frame_->features_right_.push_back(nullptr);
         }
     }
-    LOG(INFO) << "Find " << num_good_pts << " matched features in the right frame to left frame.";
+    // LOG(INFO) << "Find " << num_good_pts << " matched features in the right frame to left frame.";
     return num_good_pts;
 }
 
@@ -394,14 +392,14 @@ bool Frontend::BuildInitMap() {
     map_->InsertKeyFrame(current_frame_);
     backend_->UpdateMap();
 
-    LOG(INFO) << "Initial map created with " << cnt_init_landmarks
-              << " map points";
+    // LOG(INFO) << "Initial map created with " << cnt_init_landmarks
+            //   << " map points";
 
     return true;
 }
 
 bool Frontend::Reset() {
-    LOG(INFO) << "Reset is not implemented. ";
+    // LOG(INFO) << "Reset is not implemented. ";
     return true;
 }
 

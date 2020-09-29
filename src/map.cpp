@@ -76,13 +76,13 @@ void Map::RemoveOldKeyframe() {
         frame_to_remove = keyframes_.at(max_kf_id);
     }
 
-    LOG(INFO) << "remove keyframe " << frame_to_remove->keyframe_id_;
+    // LOG(INFO) << "Remove keyframe " << frame_to_remove->keyframe_id_;
     // remove keyframe and landmark observation
     active_keyframes_.erase(frame_to_remove->keyframe_id_);
     for (auto feat : frame_to_remove->features_left_) {
         auto mp = feat->map_point_.lock();
         if (mp) {
-            mp->RemoveObservation(feat);
+           mp->RemoveObservation(feat);
         }
     }
     for (auto feat : frame_to_remove->features_right_) {
@@ -98,16 +98,18 @@ void Map::RemoveOldKeyframe() {
 
 void Map::CleanMap() {
     int cnt_landmark_removed = 0;
-    for (auto iter = active_landmarks_.begin();
-         iter != active_landmarks_.end();) {
+    for (auto iter = active_landmarks_.begin(); iter != active_landmarks_.end(); ) {
         if (iter->second->observed_times_ == 0) {
             iter = active_landmarks_.erase(iter);
+            // id_to_remove.push_back(iter->second->id_);
             cnt_landmark_removed++;
-        } else {
-            ++iter;
+        }
+        else
+        {
+            iter++;
         }
     }
-    LOG(INFO) << "Removed " << cnt_landmark_removed << " active landmarks";
+    // LOG(INFO) << "Removed " << cnt_landmark_removed << " active landmarks";
 }
 
 }  // namespace myslam

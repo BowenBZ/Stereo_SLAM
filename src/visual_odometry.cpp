@@ -41,7 +41,7 @@ bool VisualOdometry::Init() {
 
 void VisualOdometry::Run() {
     while (1) {
-        LOG(INFO) << "VO is running";
+        // LOG(INFO) << "VO is running";
         if (Step() == false) {
             break;
         }
@@ -50,7 +50,7 @@ void VisualOdometry::Run() {
     backend_->Stop();
     viewer_->Close();
 
-    LOG(INFO) << "VO exit";
+    // LOG(INFO) << "VO exit";
 }
 
 bool VisualOdometry::Step() {
@@ -62,8 +62,8 @@ bool VisualOdometry::Step() {
     auto t2 = std::chrono::steady_clock::now();
     auto time_used =
         std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
-    std::cout << std::endl;
+    // LOG(INFO) << "VO cost time: " << time_used.count() << " seconds.";
+    // std::cout << std::endl;
     return success;
 }
 
