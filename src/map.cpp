@@ -101,7 +101,6 @@ void Map::CleanMap() {
     for (auto iter = active_landmarks_.begin(); iter != active_landmarks_.end(); ) {
         if (iter->second->observed_times_ == 0) {
             iter = active_landmarks_.erase(iter);
-            // id_to_remove.push_back(iter->second->id_);
             cnt_landmark_removed++;
         }
         else

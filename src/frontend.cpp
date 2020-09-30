@@ -12,6 +12,7 @@
 #include "myslam/g2o_types.h"
 #include "myslam/map.h"
 #include "myslam/viewer.h"
+#include "myslam/loopclosing.h"
 
 namespace myslam {
 
@@ -93,6 +94,8 @@ bool Frontend::InsertKeyframe() {
     TriangulateNewPoints();
     // update backend because we have a new keyframe
     backend_->UpdateMap();
+    // Let loop closing detect loop because we have a new keyframe
+    loopclosing_->DetectLoop();
 
     if (viewer_) viewer_->UpdateMap();
 

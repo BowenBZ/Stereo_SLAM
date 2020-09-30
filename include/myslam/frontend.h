@@ -12,6 +12,7 @@ namespace myslam {
 
 class Backend;
 class Viewer;
+class LoopClosing;
 
 enum class FrontendStatus { INITING, TRACKING_GOOD, TRACKING_BAD, LOST };
 
@@ -35,6 +36,8 @@ class Frontend {
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
     void SetViewer(std::shared_ptr<Viewer> viewer) { viewer_ = viewer; }
+
+    void SetLoopClosing(std::shared_ptr<LoopClosing> loopclosing) {loopclosing_ = loopclosing;}
 
     FrontendStatus GetStatus() const { return status_; }
 
@@ -128,6 +131,7 @@ class Frontend {
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
     std::shared_ptr<Viewer> viewer_ = nullptr;
+    std::shared_ptr<LoopClosing> loopclosing_  = nullptr;
 
     SE3 relative_motion_;  // 当前帧与上一帧的相对运动，用于估计当前帧pose初值
 

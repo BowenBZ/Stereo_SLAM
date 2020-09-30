@@ -25,11 +25,13 @@ bool VisualOdometry::Init() {
     backend_ = Backend::Ptr(new Backend);
     map_ = Map::Ptr(new Map);
     viewer_ = Viewer::Ptr(new Viewer);
+    loopclosing_ = LoopClosing::Ptr(new LoopClosing);
 
     frontend_->SetBackend(backend_);
     frontend_->SetMap(map_);
     frontend_->SetViewer(viewer_);
     frontend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
+    frontend_->SetLoopClosing(loopclosing_);
 
     backend_->SetMap(map_);
     backend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
