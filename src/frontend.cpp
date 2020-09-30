@@ -17,8 +17,10 @@
 namespace myslam {
 
 Frontend::Frontend() {
-    gftt_ =
-        cv::GFTTDetector::create(Config::Get<int>("num_features"), 0.01, 20);
+    //gftt_ = cv::GFTTDetector::create(Config::Get<int>("num_features"), 0.01, 20);
+    orb_ = cv::ORB::create ( Config::Get<int> ( "num_features" ), 
+                             Config::Get<double> ("scale_factor"), 
+                             Config::Get<int> ( "level_pyramid" ) );
     num_features_init_ = Config::Get<int>("num_features_init");
     num_features_ = Config::Get<int>("num_features");
 }
@@ -326,7 +328,8 @@ int Frontend::DetectFeatures() {
     }
 
     std::vector<cv::KeyPoint> keypoints;
-    gftt_->detect(current_frame_->left_img_, keypoints, mask);
+    // gftt_->detect(current_frame_->left_img_, keypoints, mask);
+    orb_->detect(current_frame_->left_img_, keypoints, mask);
     int cnt_detected = 0;
     for (auto &kp : keypoints) {
         current_frame_->features_left_.push_back(

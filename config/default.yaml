@@ -13,3 +13,5 @@ camera.cy: 249.7
 num_features: 150
 num_features_init: 50
 num_features_tracking: 50
+scale_factor: 1.2
+level_pyramid: 8
