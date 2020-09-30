@@ -41,6 +41,8 @@ class Frontend {
 
     FrontendStatus GetStatus() const { return status_; }
 
+    cv::Ptr<cv::ORB> GetORBExtractor() const {return orb_; }
+
     void SetCameras(Camera::Ptr left, Camera::Ptr right) {
         camera_left_ = left;
         camera_right_ = right;

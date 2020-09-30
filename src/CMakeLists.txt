@@ -13,4 +13,5 @@ add_library(myslam SHARED
         loopclosing.cpp)
 
 target_link_libraries(myslam
-        ${THIRD_PARTY_LIBS})
+        ${THIRD_PARTY_LIBS}
+        ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so)

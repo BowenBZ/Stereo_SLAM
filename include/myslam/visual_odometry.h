@@ -8,6 +8,7 @@
 #include "myslam/frontend.h"
 #include "myslam/viewer.h"
 #include "myslam/loopclosing.h"
+#include "ORBVocabulary.h"
 
 namespace myslam {
 
@@ -50,6 +51,8 @@ class VisualOdometry {
     Map::Ptr map_ = nullptr;
     Viewer::Ptr viewer_ = nullptr;
     LoopClosing::Ptr loopclosing_ = nullptr;
+
+    ORBVocabulary* mpVocabulary_;
 
     // dataset
     Dataset::Ptr dataset_ = nullptr;

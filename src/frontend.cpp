@@ -27,7 +27,6 @@ Frontend::Frontend() {
 
 bool Frontend::AddFrame(myslam::Frame::Ptr frame) {
     current_frame_ = frame;
-
     // LOG(INFO) << "Current VO Status: " << (int)status_;
 
     switch (status_) {
@@ -94,10 +93,11 @@ bool Frontend::InsertKeyframe() {
     FindFeaturesInRight();
     // triangulate map points
     TriangulateNewPoints();
+
     // update backend because we have a new keyframe
     backend_->UpdateMap();
     // Let loop closing detect loop because we have a new keyframe
-    loopclosing_->DetectLoop();
+    loopclosing_->DetectLoop(current_frame_);
 
     if (viewer_) viewer_->UpdateMap();
 
@@ -240,9 +240,9 @@ int Frontend::EstimateCurrentPose() {
 }
 
 
-void Frontend::CalcCorrespondingFeatures(const Frame::Ptr frame1, const Frame::Ptr frame2, const Camera::Ptr camera,
-                                         const Mat &img1, const Mat &img2,
-                                         std::vector<cv::Point2f> &kps2, std::vector<uchar> &status)
+void Frontend::CalcCorrespondingFeatures(const Frame::Ptr frame1, const Frame::Ptr frame2, 
+                        const Camera::Ptr camera, const Mat &img1, const Mat &img2,
+                        std::vector<cv::Point2f> &kps2, std::vector<uchar> &status)
 {
     std::vector<cv::Point2f> kps1;
 

@@ -37,4 +37,4 @@ void Frame::SetKeyFrame() {
     keyframe_id_ = keyframe_factory_id++;
 }
 
-}
+}   // namespace

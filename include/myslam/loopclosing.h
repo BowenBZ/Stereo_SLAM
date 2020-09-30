@@ -2,8 +2,12 @@
 #define MYSLAM_LOOPCLOSING_H
 
 #include "myslam/common_include.h"
+#include "myslam/frame.h"
+#include "myslam/ORBVocabulary.h"
 
 namespace myslam {
+
+class Map;
 
 class LoopClosing {
 public:
@@ -11,14 +15,16 @@ public:
     typedef std::shared_ptr<LoopClosing> Ptr;
 
     // Start the loop closure detection thread and keep it
-    LoopClosing() {
+    LoopClosing(ORBVocabulary* vocabulary) {
+        mpORBvocabulary_ = std::shared_ptr<ORBVocabulary>(vocabulary);
         loopclosing_running_.store(true);
         loopclosing_thread_ = std::thread(std::bind(&LoopClosing::Run, this));
     }
 
     // Start the detection once
-    void DetectLoop() {
+    void DetectLoop(Frame::Ptr frame) {
         std::unique_lock<std::mutex> lock(data_mutex_);
+        curr_keyframe_ = frame;
         map_update_.notify_one();
     }
 
@@ -31,9 +37,20 @@ public:
     // The thread of loop closure detection
     std::thread loopclosing_thread_;
 
+    // Map
+    std::shared_ptr<Map> map_;
+
+    void SetORBExtractor(cv::Ptr<cv::ORB> orb) { orb_ = orb; }
+
 private:
     // The main function of loop closure detection
     void Run();
+
+    // Covert the type of descriptors to use for computing BoW
+    std::vector<cv::Mat> toDescriptorVector(const cv::Mat &Descriptors);
+
+    // Compute the BoW
+    void ComputeBoW();
 
     // The flag to indicate whether the thread is running
     std::atomic<bool> loopclosing_running_;
@@ -44,6 +61,14 @@ private:
     // The variable to trigger detect once
     std::condition_variable map_update_;
 
+    // New insert key frame
+    std::shared_ptr<Frame> curr_keyframe_;
+
+    // ORB dictionary
+    std::shared_ptr<ORBVocabulary> mpORBvocabulary_;
+
+    // ORB extractor
+    cv::Ptr<cv::ORB> orb_;
 };
 
 } // namespace

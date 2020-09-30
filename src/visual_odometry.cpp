@@ -20,12 +20,24 @@ bool VisualOdometry::Init() {
         Dataset::Ptr(new Dataset(Config::Get<std::string>("dataset_dir")));
     CHECK_EQ(dataset_->Init(), true);
 
+    std::cout << "Loading ORB Vocabulary." << std::endl;
+    //建立一个新的ORB字典
+    mpVocabulary_ = new ORBVocabulary();
+    //获取字典加载状态
+    bool bVocLoad = mpVocabulary_->loadFromTextFile(Config::Get<std::string>("vocabulary_dir"));
+    if(!bVocLoad)
+    {
+        std::cerr << "Wrong path to vocabulary. " << std::endl;
+        return false;
+    }
+    std::cout << "Vocabulary loaded!" << std::endl << std::endl;
+
     // create components and links
     frontend_ = Frontend::Ptr(new Frontend);
     backend_ = Backend::Ptr(new Backend);
     map_ = Map::Ptr(new Map);
     viewer_ = Viewer::Ptr(new Viewer);
-    loopclosing_ = LoopClosing::Ptr(new LoopClosing);
+    loopclosing_ = LoopClosing::Ptr(new LoopClosing(mpVocabulary_));
 
     frontend_->SetBackend(backend_);
     frontend_->SetMap(map_);
@@ -37,6 +49,9 @@ bool VisualOdometry::Init() {
     backend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
 
     viewer_->SetMap(map_);
+
+    loopclosing_->SetORBExtractor(frontend_->GetORBExtractor());
+
 
     return true;
 }
