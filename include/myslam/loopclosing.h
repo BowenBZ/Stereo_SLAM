@@ -2,12 +2,13 @@
 #define MYSLAM_LOOPCLOSING_H
 
 #include "myslam/common_include.h"
-#include "myslam/frame.h"
 #include "myslam/ORBVocabulary.h"
+#include <opencv2/features2d.hpp>
 
 namespace myslam {
 
 class Map;
+class Frame;
 
 class LoopClosing {
 public:
@@ -22,7 +23,7 @@ public:
     }
 
     // Start the detection once
-    void DetectLoop(Frame::Ptr frame) {
+    void DetectLoop(std::shared_ptr<Frame> frame) {
         std::unique_lock<std::mutex> lock(data_mutex_);
         curr_keyframe_ = frame;
         map_update_.notify_one();
@@ -34,11 +35,7 @@ public:
         loopclosing_thread_.join();
     }
 
-    // The thread of loop closure detection
-    std::thread loopclosing_thread_;
-
-    // Map
-    std::shared_ptr<Map> map_;
+    void SetMap(std::shared_ptr<Map> map) {map_ = map; }
 
     void SetORBExtractor(cv::Ptr<cv::ORB> orb) { orb_ = orb; }
 
@@ -51,6 +48,12 @@ private:
 
     // Compute the BoW
     void ComputeBoW();
+
+    // Compute the score of current key_frame and previous keyframes
+    void ComputeScore();
+
+    // The thread of loop closure detection
+    std::thread loopclosing_thread_;
 
     // The flag to indicate whether the thread is running
     std::atomic<bool> loopclosing_running_;
@@ -69,6 +72,9 @@ private:
 
     // ORB extractor
     cv::Ptr<cv::ORB> orb_;
+
+    // Map
+    std::shared_ptr<Map> map_;
 };
 
 } // namespace

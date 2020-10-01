@@ -52,8 +52,6 @@ class VisualOdometry {
     Viewer::Ptr viewer_ = nullptr;
     LoopClosing::Ptr loopclosing_ = nullptr;
 
-    ORBVocabulary* mpVocabulary_;
-
     // dataset
     Dataset::Ptr dataset_ = nullptr;
 };
