@@ -75,9 +75,8 @@ class Frontend {
 
     /**
      * set current frame as a keyframe and insert it into backend
-     * @return true if success
      */
-    bool InsertKeyframe();
+    void InsertKeyframe();
 
     /**
      * Try init the frontend with stereo images saved in current_frame_

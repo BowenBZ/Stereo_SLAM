@@ -12,8 +12,9 @@ void LoopClosing::Run()
         std::unique_lock<std::mutex> lock(data_mutex_);
         // Stuck current thread until the map_update_ is notified by other thread 
         // This automatically unlock the data_mutex_
+        // When the mpa_update is notified by other thread, the data_mutex_ will be locked
         map_update_.wait(lock);
-        // LOG(INFO) << "Start detecting loop\n";
+
         ComputeBoW();
         ComputeScore();
     }
@@ -43,46 +44,44 @@ void LoopClosing::ComputeBoW()
     mpORBvocabulary_->transform(vCurrentDesc, curr_keyframe_->mBowVec_, curr_keyframe_->mFeatVec_, 4);
 }
 
+// Compute the score of current keyframe and previous keyframes
 void LoopClosing::ComputeScore()
 {
-    if (curr_keyframe_->keyframe_id_ == 0)
+    if (map_->GetAllKeyFrames().size() < 10)
         return;
-
-    if (map_->GetAllKeyFrames().size() <= 10)
-        return;
-
-    float refScore = 0;
-    for (unsigned long i = 1; i < 10; i++)
-    {
-        float score = mpORBvocabulary_->score(curr_keyframe_->mBowVec_, 
-                                              map_->GetAllKeyFrames()[curr_keyframe_->keyframe_id_-i]->mBowVec_);
-        refScore = (score > refScore) ? score : refScore;
-    }
-    refScore = (refScore > 1e-6) ? refScore : 1e-6;
     
-    float max_score = 0;
+    // Calculate the max score of latest 9 keyframes
+    // Calculate the max score of previous keyframes
+    float max_score = 0, refScore = 0;
     unsigned long max_id = 0;
     for(auto& kf: map_->GetAllKeyFrames())
     {
-        if (kf.first == curr_keyframe_->keyframe_id_)
+        if (curr_keyframe_->keyframe_id_ == kf.first)
             continue;
         if (curr_keyframe_->keyframe_id_ - kf.first < 10)
-            continue;
-        float score = mpORBvocabulary_->score(curr_keyframe_->mBowVec_, kf.second->mBowVec_);
-
-        if (score > max_score)
         {
-            max_score = score;
-            max_id = kf.first;
+            float score = mpORBvocabulary_->score(curr_keyframe_->mBowVec_, kf.second->mBowVec_);
+            refScore = (score > refScore) ? score : refScore;
+        }
+        else
+        {
+            float score = mpORBvocabulary_->score(curr_keyframe_->mBowVec_, kf.second->mBowVec_);
+            if (score > max_score)
+            {
+                max_score = score;
+                max_id = kf.first;
+            }
         }
     }
-    if (max_score < 2 * refScore)
+
+    // Select the keyframe with score larger than 2 times of refscore
+    if (refScore < 1e-6 || max_score < 2 * refScore)
         return;
 
     LOG(INFO) << "Current:" << curr_keyframe_->keyframe_id_ << ' ' 
                 << "Ref:" << refScore << ' '
                 << "Looped:" << max_id << ' ' 
-                << "Score" << max_score;
+                << "Score:" << max_score / refScore;
 }
 
 

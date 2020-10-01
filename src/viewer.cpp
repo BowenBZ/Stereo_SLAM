@@ -150,7 +150,9 @@ void Viewer::DrawMapPoints() {
     const float blue[3] = {0, 0, 1.0};
 
     for (auto& kf : all_keyframes_) {
-        DrawFrame(kf.second, blue);
+        if(kf.first != current_frame_->keyframe_id_) {
+            DrawFrame(kf.second, blue);
+        }
     }
 
     glPointSize(2);

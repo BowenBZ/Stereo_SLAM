@@ -58,7 +58,7 @@ private:
     // The flag to indicate whether the thread is running
     std::atomic<bool> loopclosing_running_;
 
-    // Lock of data
+    // Lock of current thread. Used by std::unique_lock
     std::mutex data_mutex_;
 
     // The variable to trigger detect once

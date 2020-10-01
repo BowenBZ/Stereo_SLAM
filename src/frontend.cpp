@@ -52,7 +52,7 @@ bool Frontend::Track() {
         current_frame_->SetPose(relative_motion_ * last_frame_->Pose());
     }
 
-    int num_track_last = FindFeaturesInCurrent();
+    FindFeaturesInCurrent();
     tracking_inliers_ = EstimateCurrentPose();
 
     if (tracking_inliers_ > num_features_tracking_) {
@@ -65,20 +65,17 @@ bool Frontend::Track() {
         // lost
         status_ = FrontendStatus::LOST;
     }
-
-    InsertKeyframe();
+    
+    if (tracking_inliers_ < num_features_needed_for_keyframe_) {
+        InsertKeyframe();
+    }
     relative_motion_ = current_frame_->Pose() * last_frame_->Pose().inverse();
 
     if (viewer_) viewer_->AddCurrentFrame(current_frame_);
     return true;
 }
 
-bool Frontend::InsertKeyframe() {
-    if (tracking_inliers_ >= num_features_needed_for_keyframe_) {
-        // still have enough features, don't insert keyframe
-        // LOG(INFO) << "Still have " << tracking_inliers_ << " features (enough for tracking)";
-        return false;
-    }
+void Frontend::InsertKeyframe() {
 
     // LOG(INFO) << "Features are not enough for tracking\n. Set frame " << current_frame_->id_ << " as new keyframe with ID" << current_frame_->keyframe_id_;
 
@@ -100,8 +97,6 @@ bool Frontend::InsertKeyframe() {
     loopclosing_->DetectLoop(current_frame_);
 
     if (viewer_) viewer_->UpdateMap();
-
-    return true;
 }
 
 void Frontend::SetObservationsForKeyFrame() {
@@ -240,6 +235,53 @@ int Frontend::EstimateCurrentPose() {
 }
 
 
+
+// Initialize the map with first left and right frames
+bool Frontend::StereoInit() {
+    // LOG(INFO) << "Initializing the map.";
+
+    DetectFeatures();
+    int num_coor_features = FindFeaturesInRight();
+    if (num_coor_features < num_features_init_) {
+        return false;
+    }
+
+    bool build_map_success = BuildInitMap();
+    if (build_map_success) {
+        status_ = FrontendStatus::TRACKING_GOOD;
+        if (viewer_) {
+            viewer_->AddCurrentFrame(current_frame_);
+            viewer_->UpdateMap();
+        }
+        return true;
+    }
+    return false;
+}
+
+
+// Extract GFTT features from current left frame 
+int Frontend::DetectFeatures() {
+    // Mask current key-points' positions to extract new features
+    cv::Mat mask(current_frame_->left_img_.size(), CV_8UC1, 255);
+    for (auto &feat : current_frame_->features_left_) {
+        cv::rectangle(mask, feat->position_.pt - cv::Point2f(10, 10),
+                      feat->position_.pt + cv::Point2f(10, 10), 0, CV_FILLED);
+    }
+
+    std::vector<cv::KeyPoint> keypoints;
+    // gftt_->detect(current_frame_->left_img_, keypoints, mask);
+    orb_->detect(current_frame_->left_img_, keypoints, mask);
+    int cnt_detected = 0;
+    for (auto &kp : keypoints) {
+        current_frame_->features_left_.push_back(
+            Feature::Ptr(new Feature(current_frame_, kp)));
+        cnt_detected++;
+    }
+
+    // LOG(INFO) << "Detect " << cnt_detected << " new features";
+    return cnt_detected;
+}
+
 void Frontend::CalcCorrespondingFeatures(const Frame::Ptr frame1, const Frame::Ptr frame2, 
                         const Camera::Ptr camera, const Mat &img1, const Mat &img2,
                         std::vector<cv::Point2f> &kps2, std::vector<uchar> &status)
@@ -251,6 +293,7 @@ void Frontend::CalcCorrespondingFeatures(const Frame::Ptr frame1, const Frame::P
         kps1.push_back(kp->position_.pt);
         if (kp->map_point_.lock())
         {
+            // If the previous feature point is associated with a mappoint
             // use project point from mappoint
             auto mp = kp->map_point_.lock();
             auto px = camera->world2pixel(mp->pos_, frame2->Pose());
@@ -258,7 +301,9 @@ void Frontend::CalcCorrespondingFeatures(const Frame::Ptr frame1, const Frame::P
         }
         else
         {
-            // use same pixel in left iamge
+            // The previous feature point is not associated with a mappoint 
+            // (not matched with previous right frame or this frame is a new keyframe)
+            // use same pixel in left image
             kps2.push_back(kp->position_.pt);
         }
     }
@@ -286,7 +331,7 @@ int Frontend::FindFeaturesInCurrent() {
         if (status[i]) {
             cv::KeyPoint kp(kps_current[i], 7);
             Feature::Ptr feature(new Feature(current_frame_, kp));
-            feature->map_point_ = last_frame_->features_left_[i]->map_point_;   // passing a weak_ptr
+            feature->map_point_ = last_frame_->features_left_[i]->map_point_;  // passing a weak_ptr, maybe nullptr
             current_frame_->features_left_.push_back(feature);
             num_good_pts++;
         }
@@ -294,51 +339,6 @@ int Frontend::FindFeaturesInCurrent() {
 
     // LOG(INFO) << "Find " << num_good_pts << " matched features in the current frame to last frame.";
     return num_good_pts;
-}
-
-// Initialize the map with first left and right frames
-bool Frontend::StereoInit() {
-    // LOG(INFO) << "Initializing the map.";
-
-    int num_features_left = DetectFeatures();
-    int num_coor_features = FindFeaturesInRight();
-    if (num_coor_features < num_features_init_) {
-        return false;
-    }
-
-    bool build_map_success = BuildInitMap();
-    if (build_map_success) {
-        status_ = FrontendStatus::TRACKING_GOOD;
-        if (viewer_) {
-            viewer_->AddCurrentFrame(current_frame_);
-            viewer_->UpdateMap();
-        }
-        return true;
-    }
-    return false;
-}
-
-// Extract GFTT features from current left frame 
-int Frontend::DetectFeatures() {
-    // Mask current key-points' positions to extract new features
-    cv::Mat mask(current_frame_->left_img_.size(), CV_8UC1, 255);
-    for (auto &feat : current_frame_->features_left_) {
-        cv::rectangle(mask, feat->position_.pt - cv::Point2f(10, 10),
-                      feat->position_.pt + cv::Point2f(10, 10), 0, CV_FILLED);
-    }
-
-    std::vector<cv::KeyPoint> keypoints;
-    // gftt_->detect(current_frame_->left_img_, keypoints, mask);
-    orb_->detect(current_frame_->left_img_, keypoints, mask);
-    int cnt_detected = 0;
-    for (auto &kp : keypoints) {
-        current_frame_->features_left_.push_back(
-            Feature::Ptr(new Feature(current_frame_, kp)));
-        cnt_detected++;
-    }
-
-    // LOG(INFO) << "Detect " << cnt_detected << " new features";
-    return cnt_detected;
 }
 
 // Find corresponding features from current right frame (to current left features)
@@ -371,9 +371,10 @@ int Frontend::FindFeaturesInRight() {
 bool Frontend::BuildInitMap() {
     std::vector<SE3> poses{camera_left_->pose(), camera_right_->pose()};
     size_t cnt_init_landmarks = 0;
+    // Look for the features pairs that both appears in the left and right frames
     for (size_t i = 0; i < current_frame_->features_left_.size(); ++i) {
         if (current_frame_->features_right_[i] == nullptr) continue;
-        // create map point from triangulation
+        // create map point from triangulate
         std::vector<Vec3> points{
             camera_left_->pixel2camera(
                 Vec2(current_frame_->features_left_[i]->position_.pt.x,

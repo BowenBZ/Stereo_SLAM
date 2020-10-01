@@ -6,14 +6,14 @@ dataset_dir: /mnt/d/Bowen/Study/SLAM/dataset/KITTI/sequences/00
 vocabulary_dir: ./ORBvoc.txt
 
 # camera intrinsics
-# camera.fx: 517.3
-# camera.fy: 516.5
-# camera.cx: 325.1
-# camera.cy: 249.7
-Camera.fx: 718.856
-Camera.fy: 718.856
-Camera.cx: 607.1928
-Camera.cy: 185.2157
+camera.fx: 517.3
+camera.fy: 516.5
+camera.cx: 325.1
+camera.cy: 249.7
+# Camera.fx: 718.856
+# Camera.fy: 718.856
+# Camera.cx: 607.1928
+# Camera.cy: 185.2157
 
 num_features: 150
 num_features_init: 50
