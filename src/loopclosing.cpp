@@ -20,16 +20,6 @@ void LoopClosing::Run()
     }
 }
 
-std::vector<cv::Mat> LoopClosing::toDescriptorVector(const cv::Mat &Descriptors)
-{
-    std::vector<cv::Mat> vDesc;
-    vDesc.reserve(Descriptors.rows);
-    for (int j=0;j<Descriptors.rows;j++)
-        vDesc.push_back(Descriptors.row(j));
-
-    return vDesc;
-}
-
 // Compute BoW vector for current_keyframe_
 void LoopClosing::ComputeBoW()
 {
@@ -40,8 +30,7 @@ void LoopClosing::ComputeBoW()
     }
     cv::Mat descriptors_left;
     orb_->compute(curr_keyframe_->left_img_, keypoints_left, descriptors_left);
-    vector<cv::Mat> vCurrentDesc = toDescriptorVector(descriptors_left);
-    mpORBvocabulary_->transform(vCurrentDesc, curr_keyframe_->mBowVec_, curr_keyframe_->mFeatVec_, 4);
+    mpORBvocabulary_->transform(descriptors_left, curr_keyframe_->BowVec_);
 }
 
 // Compute the score of current keyframe and previous keyframes
@@ -60,12 +49,12 @@ void LoopClosing::ComputeScore()
             continue;
         if (curr_keyframe_->keyframe_id_ - kf.first < 10)
         {
-            float score = mpORBvocabulary_->score(curr_keyframe_->mBowVec_, kf.second->mBowVec_);
+            float score = mpORBvocabulary_->score(curr_keyframe_->BowVec_, kf.second->BowVec_);
             refScore = (score > refScore) ? score : refScore;
         }
         else
         {
-            float score = mpORBvocabulary_->score(curr_keyframe_->mBowVec_, kf.second->mBowVec_);
+            float score = mpORBvocabulary_->score(curr_keyframe_->BowVec_, kf.second->BowVec_);
             if (score > max_score)
             {
                 max_score = score;

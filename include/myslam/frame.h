@@ -8,8 +8,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/core/types.hpp>
-#include "../Thirdparty/DBoW2/DBoW2/BowVector.h"
-#include "../Thirdparty/DBoW2/DBoW2/FeatureVector.h"
+#include "DBoW3/DBoW3.h"
 
 namespace myslam {
 
@@ -42,11 +41,7 @@ struct Frame {
     // Bag of Words Vector structures.
     // 内部实际存储的是std::map<WordId, WordValue>
     // WordId 和 WordValue 表示Word在叶子中的id 和权重
-    DBoW2::BowVector mBowVec_;
-    // 内部实际存储 std::map<NodeId, std::vector<unsigned int> >
-    // NodeId 表示节点id，std::vector<unsigned int> 中实际存的是该节点id下所有特征点在图像中的索引
-    DBoW2::FeatureVector mFeatVec_;
-
+    DBoW3::BowVector BowVec_;
 
    public:  // data members
     Frame() {}

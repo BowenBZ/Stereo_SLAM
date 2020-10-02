@@ -8,7 +8,6 @@
 #include "myslam/frontend.h"
 #include "myslam/viewer.h"
 #include "myslam/loopclosing.h"
-#include "ORBVocabulary.h"
 
 namespace myslam {
 

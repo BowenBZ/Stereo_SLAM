@@ -2,8 +2,8 @@
 #define MYSLAM_LOOPCLOSING_H
 
 #include "myslam/common_include.h"
-#include "myslam/ORBVocabulary.h"
 #include <opencv2/features2d.hpp>
+#include "DBoW3/DBoW3.h"
 
 namespace myslam {
 
@@ -16,8 +16,8 @@ public:
     typedef std::shared_ptr<LoopClosing> Ptr;
 
     // Start the loop closure detection thread and keep it
-    LoopClosing(ORBVocabulary* vocabulary) {
-        mpORBvocabulary_ = std::shared_ptr<ORBVocabulary>(vocabulary);
+    LoopClosing(DBoW3::Vocabulary* vocabulary) {
+        mpORBvocabulary_ = std::shared_ptr<DBoW3::Vocabulary>(vocabulary);
         loopclosing_running_.store(true);
         loopclosing_thread_ = std::thread(std::bind(&LoopClosing::Run, this));
     }
@@ -68,7 +68,7 @@ private:
     std::shared_ptr<Frame> curr_keyframe_;
 
     // ORB dictionary
-    std::shared_ptr<ORBVocabulary> mpORBvocabulary_;
+    std::shared_ptr<DBoW3::Vocabulary> mpORBvocabulary_;
 
     // ORB extractor
     cv::Ptr<cv::ORB> orb_;

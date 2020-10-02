@@ -4,6 +4,7 @@
 #include "myslam/visual_odometry.h"
 #include <chrono>
 #include "myslam/config.h"
+#include "DBoW3/DBoW3.h"
 
 namespace myslam {
 
@@ -20,16 +21,9 @@ bool VisualOdometry::Init() {
         Dataset::Ptr(new Dataset(Config::Get<std::string>("dataset_dir")));
     CHECK_EQ(dataset_->Init(), true);
 
+    // Load ORB vocabulary
     LOG(INFO) << "Loading ORB Vocabulary...";
-    //建立一个新的ORB字典
-    ORBVocabulary* mpVocabulary = new ORBVocabulary();
-    //获取字典加载状态
-    bool bVocLoad = mpVocabulary->loadFromTextFile(Config::Get<std::string>("vocabulary_dir"));
-    if(!bVocLoad)
-    {
-        std::cerr << "Wrong path to vocabulary. " << std::endl;
-        return false;
-    }
+    DBoW3::Vocabulary* mpVocabulary = new DBoW3::Vocabulary(Config::Get<std::string>("vocabulary_dir"));
     LOG(INFO) << "Vocabulary loaded!";
 
     // create components and links
