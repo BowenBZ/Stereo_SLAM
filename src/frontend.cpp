@@ -84,12 +84,14 @@ void Frontend::InsertKeyframe() {
     map_->InsertKeyFrame(current_frame_);
 
     SetObservationsForKeyFrame();
-    DetectFeatures();  // detect new features
 
+    DetectFeatures();  // detect new features
     // track in right image
     FindFeaturesInRight();
     // triangulate map points
     TriangulateNewPoints();
+
+    current_frame_->UpdateConnections();
 
     // update backend because we have a new keyframe
     backend_->UpdateMap();
