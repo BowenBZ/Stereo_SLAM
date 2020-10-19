@@ -3,7 +3,7 @@
 # the tum dataset directory, change it to yours! 
 # dataset_dir: /media/xiang/Data/Dataset/Kitti/dataset/sequences/00
 dataset_dir: /mnt/d/Bowen/Study/SLAM/dataset/KITTI/sequences/00
-vocabulary_dir: ./vocabulary/ORBvoc.txt
+vocabulary_dir: /home/zbw/berwinz/stereo_vo_bknd/vocabulary/ORBvoc.txt
 
 # camera intrinsics
 camera.fx: 517.3

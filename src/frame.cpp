@@ -25,8 +25,8 @@
 
 namespace myslam {
 
-Frame::Frame(long id, double time_stamp, const SE3 &pose, const Mat &left, const Mat &right)
-        : id_(id), time_stamp_(time_stamp), pose_(pose), left_img_(left), right_img_(right) { }
+// Frame::Frame(long id, double time_stamp, const SE3 &pose, const Mat &left, const Mat &right)
+//         : id_(id), time_stamp_(time_stamp), pose_(pose), left_img_(left), right_img_(right) { }
 
 Frame::Ptr Frame::CreateFrame() {
     static long factory_id = 0;
@@ -41,17 +41,15 @@ void Frame::SetKeyFrame() {
     keyframe_id_ = keyframe_factory_id++;
 }
 
-void Frame::UpdateConnections() {
+void Frame::UpdateCovisibleConnections() {
 
     // Calcualte the co-visible frames' count
     std::unordered_map<Frame::Ptr, int> KFCounter;
     for(auto& fe : features_left_) {
-        auto mappoint = fe->map_point_.lock();
-        if(mappoint) {
-            for(auto& observed_fea_ptr : mappoint->observations_) {
+        if(auto mappoint = fe->map_point_.lock()) {
+            for(auto& ob : mappoint->GetObs()) {
 
-                auto observed_fea = observed_fea_ptr.lock();
-                if(observed_fea && observed_fea->is_on_left_image_) {
+                if(auto observed_fea = ob.lock()) {
 
                     auto observed_frame = observed_fea->frame_.lock();
                     if(observed_frame && observed_frame->keyframe_id_ != this->keyframe_id_) {

@@ -37,16 +37,15 @@ bool VisualOdometry::Init() {
     frontend_->SetMap(map_);
     frontend_->SetViewer(viewer_);
     frontend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
-    frontend_->SetLoopClosing(loopclosing_);
 
     backend_->SetMap(map_);
     backend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
+    backend_->SetLoopClosing(loopclosing_);
 
     viewer_->SetMap(map_);
 
     loopclosing_->SetORBExtractor(frontend_->GetORBExtractor());
     loopclosing_->SetMap(map_);
-
 
     return true;
 }

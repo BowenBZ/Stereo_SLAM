@@ -2,6 +2,7 @@
 #include<opencv2/core/core.hpp>
 #include "myslam/feature.h"
 #include "myslam/map.h"
+#include "myslam/mappoint.h"
 
 namespace myslam {
 
@@ -9,6 +10,7 @@ namespace myslam {
 LoopClosing::LoopClosing(DBoW3::Vocabulary* vocabulary) {
     mpORBvocabulary_ = std::shared_ptr<DBoW3::Vocabulary>(vocabulary);
     wordObservedFrames_.resize(mpORBvocabulary_->size());
+    matcher_flann_ = cv::FlannBasedMatcher(new cv::flann::LshIndexParams ( 5,10,2 ));
     loopclosing_running_.store(true);
     loopclosing_thread_ = std::thread(std::bind(&LoopClosing::Run, this));
 }
@@ -38,7 +40,7 @@ void LoopClosing::Run()
 
         if(DetectLoop())
         {
-            lasLoopID_ = curr_keyframe_->keyframe_id_;
+            lastLoopID_ = curr_keyframe_->keyframe_id_;
         }
     }
 }
@@ -50,7 +52,7 @@ bool LoopClosing::DetectLoop() {
 
     LOG(INFO) << "Current ID: " << curr_keyframe_->keyframe_id_;
 
-    if(curr_keyframe_->keyframe_id_ - lasLoopID_ < 10) {
+    if(curr_keyframe_->keyframe_id_ - lastLoopID_ < 10) {
         LOG(INFO) << "Too close to last time loop";
         return false;
     }
@@ -61,6 +63,7 @@ bool LoopClosing::DetectLoop() {
     float minScore = ComputeCovisibleMinScore(candidateKF0);
     if(candidateKF0.empty()) {
         LOG(INFO) << "No non-covisibleframe larger than minscore";
+        prevGroupLenCounter_.clear();
         return false;
     }
 
@@ -69,6 +72,7 @@ bool LoopClosing::DetectLoop() {
     float minCommonWords = ComputeNoncovisibleMinCommonWords(candidateKF0, candidateKF1);
     if(candidateKF1.empty()) {
         LOG(INFO) << "No keyframe larges than minCommonWords";
+        prevGroupLenCounter_.clear();
         return false;
     }
 
@@ -77,7 +81,7 @@ bool LoopClosing::DetectLoop() {
     float minGroupScore = ComputeMinGroupScore(candidateKF1, candidateKF2);
     if (candidateKF2.empty()) {
         LOG(INFO) << "No frame larges than minGroupScore";
-        lastTimeGroups_.clear();
+        prevGroupLenCounter_.clear();
         return false;
     }
 
@@ -89,23 +93,29 @@ bool LoopClosing::DetectLoop() {
         return false;
     }
 
+    bool hasLoop = ComputeLoopPoseChange(candidateKF3);
+    if (!hasLoop) {
+        LOG(INFO) << "No loop frame meets pose change requirements";
+        return false;
+    }
+
     LOG(INFO) << "Minscore: " << minScore << ' ' 
               << "MinCommonWords: " << minCommonWords << ' '
               << "minGroupScore: " << minGroupScore << ' '
-              << "candidates: " << candidateKF3.size();
+              << "LoopID: " << loopFrame_->keyframe_id_;
     return true;
 }
 
 void LoopClosing::ComputeBoW()
 {
-    std::vector<cv::KeyPoint> keypoints_left;
+    curr_keypoints_left_.clear();
     for(auto& kp : curr_keyframe_->features_left_) {
-        keypoints_left.push_back(kp->position_);
+        if(!kp->is_outlier_) {
+            curr_keypoints_left_.push_back(kp->position_);
+        }
     }
-
-    cv::Mat descriptors_left;
-    orb_->compute(curr_keyframe_->left_img_, keypoints_left, descriptors_left);
-    mpORBvocabulary_->transform(descriptors_left, curr_keyframe_->BowVec_);
+    orb_->compute(curr_keyframe_->left_img_, curr_keypoints_left_, curr_descriptors_left_);
+    mpORBvocabulary_->transform(curr_descriptors_left_, curr_keyframe_->BowVec_);
 
     // Update the wordObservedFrames_
     for(auto& word : curr_keyframe_->BowVec_) {
@@ -128,11 +138,12 @@ float LoopClosing::ComputeCovisibleMinScore(std::set<Frame::Ptr>& candidateKF) {
     // LOG(INFO) << "Connected ID: weight " << connect;
     // LOG(INFO) << scores;
 
+    auto connectedKeyFramesCounter = curr_keyframe_->GetConnectedKeyFramesCounter();
     // Select the non-covisible keyframe larger than minscore
     for(auto& kf : map_->GetAllKeyFrames()) {
         // Select keyframe that not belongs to covisible frames
         if (kf.first != curr_keyframe_->keyframe_id_ && 
-            !curr_keyframe_->GetConnectedKeyFramesCounter().count(kf.second)) {
+            !connectedKeyFramesCounter.count(kf.second)) {
 
             float score = ComputeScore(curr_keyframe_->BowVec_, kf.second->BowVec_);
             if (score > minScore) {
@@ -150,8 +161,8 @@ float LoopClosing::ComputeScore(const DBoW3::BowVector &a, const DBoW3::BowVecto
     return mpORBvocabulary_->score(a, b);
 }
 
-float LoopClosing::ComputeNoncovisibleMinCommonWords(std::set<Frame::Ptr>& inputCandidateKF, 
-                                                     std::set<Frame::Ptr>& outputCandidateKF) {
+float LoopClosing::ComputeNoncovisibleMinCommonWords(const std::set<Frame::Ptr>& inputCandidateKF, 
+                                                            std::set<Frame::Ptr>& outputCandidateKF) {
 
     // Calculate common words for candidatePassScore
     for(auto& word : curr_keyframe_->BowVec_) {
@@ -192,8 +203,8 @@ float LoopClosing::ComputeNoncovisibleMinCommonWords(std::set<Frame::Ptr>& input
     return minCommonWords;
 }
 
-float LoopClosing::ComputeMinGroupScore(std::set<Frame::Ptr>& inputCandidateKF, 
-                                        std::set<Frame::Ptr>& outputCandidateKF) {
+float LoopClosing::ComputeMinGroupScore(const std::set<Frame::Ptr>& inputCandidateKF, 
+                                                std::set<Frame::Ptr>& outputCandidateKF) {
 
     // Calculate each candidate's group
     std::list<std::pair<Frame::Ptr, float>> groupScoreCounter;
@@ -228,12 +239,10 @@ float LoopClosing::ComputeMinGroupScore(std::set<Frame::Ptr>& inputCandidateKF,
     return minGroupScore;
 }
 
+void LoopClosing::SelectConsistentKFs(const std::set<Frame::Ptr>& inputCandidateKF,
+                                            std::set<Frame::Ptr>& outputCandidateKF) {
 
-// Select the consistent keyframes in different detection time
-void LoopClosing::SelectConsistentKFs(std::set<Frame::Ptr>& inputCandidateKF,
-                                      std::set<Frame::Ptr>& outputCandidateKF) {
-
-    std::vector<std::pair<std::set<Frame::Ptr>, int>> tmpThisTimeGroup;
+    std::vector<std::pair<std::set<Frame::Ptr>, int>> tmpGroupLenCounter;
     int minConsistencyThreshold = 3;
 
     for(auto& kf : inputCandidateKF) {
@@ -242,19 +251,19 @@ void LoopClosing::SelectConsistentKFs(std::set<Frame::Ptr>& inputCandidateKF,
 
         int currentConsistency = 0;
 
-        for(auto& lastGroup : lastTimeGroups_) {
+        for(auto& lastGroup : prevGroupLenCounter_) {
             if (HasCommonMember(currentGroup, lastGroup.first)) {
                 currentConsistency = 
                     (lastGroup.second + 1 > currentConsistency) ? lastGroup.second + 1 : currentConsistency;
             }
         }
-        tmpThisTimeGroup.push_back(std::make_pair(currentGroup, currentConsistency));
+        tmpGroupLenCounter.push_back(std::make_pair(currentGroup, currentConsistency));
         
         if(currentConsistency >= minConsistencyThreshold) {
             outputCandidateKF.insert(kf);
         }
     }
-    lastTimeGroups_ = tmpThisTimeGroup;
+    prevGroupLenCounter_ = tmpGroupLenCounter;
 }
 
 bool LoopClosing::HasCommonMember(const std::set<Frame::Ptr>& group1, 
@@ -266,5 +275,50 @@ bool LoopClosing::HasCommonMember(const std::set<Frame::Ptr>& group1,
     }
     return false;
 }
+
+bool LoopClosing::ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF) {
+
+    for(auto& kf : candidateKF) {
+        std::vector<cv::KeyPoint> candidate_keypoints_left;
+        cv::Mat candidate_descriptors_left;
+        for(auto& kp : kf->features_left_) {
+            if(!kp->is_outlier_) {
+                candidate_keypoints_left.push_back(kp->position_);
+            }
+        }
+        orb_->compute(kf->left_img_, candidate_keypoints_left, candidate_descriptors_left);
+
+        // Match candidate_descriptors_left and curr_descriptors_left_
+        std::vector<cv::DMatch> matches;
+        matcher_flann_.match(candidate_descriptors_left, curr_descriptors_left_, matches);
+
+        // Calculate the mindistance
+        float min_dis = std::min_element (
+                        matches.begin(), matches.end(),
+                        [] ( const cv::DMatch& m1, const cv::DMatch& m2 )
+        {
+            return m1.distance < m2.distance;
+        } )->distance;
+
+        // Establish the 3d-2d points pair
+        std::unordered_map<MapPoint::Ptr, cv::Point2f> match_3d_2d_pts;
+        for(auto& m : matches) {
+            if (m.distance < std::max<float> (min_dis * 2.0f, 30.0f) ) {
+                auto mappoint = kf->features_left_[m.queryIdx]->map_point_.lock();
+                if(mappoint) {
+                    match_3d_2d_pts[mappoint] = curr_keypoints_left_[m.trainIdx].pt;
+                }
+            }
+        }
+
+        LOG(INFO) << "Min Distance: " << min_dis << " matched points: " << match_3d_2d_pts.size();
+        // if (match_3d_2d_pts.size() < 20) {
+        //     continue;
+        // }
+    }
+
+    return false;
+}
+
 
 } // namespace

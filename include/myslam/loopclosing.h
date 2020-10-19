@@ -49,19 +49,22 @@ private:
 
     // Compute the min common words of noncovisible key-frames and curr_frame_, used as threshold
     // Returns the candidateKF whose common words larger than mincommonwords
-    float ComputeNoncovisibleMinCommonWords(std::set<Frame::Ptr>& inputCandidateKF, 
+    float ComputeNoncovisibleMinCommonWords(const std::set<Frame::Ptr>& inputCandidateKF, 
                                             std::set<Frame::Ptr>& outputCandidateKF);
 
     // Compute the min group words of inputCandidateKF and return the outputCandidateKF
-    float ComputeMinGroupScore(std::set<Frame::Ptr>& inputCandidateKF, 
+    float ComputeMinGroupScore(const std::set<Frame::Ptr>& inputCandidateKF, 
                                 std::set<Frame::Ptr>& outputCandidateKF);
 
     // Select the consistent keyframes in different detection time
-    void SelectConsistentKFs(std::set<Frame::Ptr>& inputCandidateKF,
+    void SelectConsistentKFs(const std::set<Frame::Ptr>& inputCandidateKF,
                              std::set<Frame::Ptr>& outputCandidateKF);
 
     // Check whether group1 and group2 has common member
     bool HasCommonMember(const std::set<Frame::Ptr>& group1, const std::set<Frame::Ptr>& group2);
+
+    // Calculate the pose change between the loop frame and curr_keyframe_, return true if the loop frame meets the requirements 
+    bool ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF);
 
     // The thread of loop closure detection
     std::thread loopclosing_thread_;
@@ -77,6 +80,14 @@ private:
 
     // New insert key frame
     Frame::Ptr curr_keyframe_;
+    // ORB extractor
+    cv::Ptr<cv::ORB> orb_;
+    // The keypoints of current left frame
+    std::vector<cv::KeyPoint> curr_keypoints_left_;
+    // The descriptors of current left frame
+    cv::Mat curr_descriptors_left_;
+    // ORB descriptors matcher
+    cv::FlannBasedMatcher   matcher_flann_;     // flann matcher
 
     // ORB dictionary
     std::shared_ptr<DBoW3::Vocabulary> mpORBvocabulary_;
@@ -85,17 +96,18 @@ private:
     std::vector<std::list<Frame::Ptr>> wordObservedFrames_;
 
     // Contains the groups with length from last time detection
-    std::vector<std::pair<std::set<Frame::Ptr>, int>> lastTimeGroups_;
+    std::vector<std::pair<std::set<Frame::Ptr>, int>> prevGroupLenCounter_;
 
-
-    // ORB extractor
-    cv::Ptr<cv::ORB> orb_;
+    // The keyframe has a loop with curr_keyframe_
+    Frame::Ptr loopFrame_;
+    // The pose from keyframe to curr_keyframe_
+    SE3 loopToCurrentPose_;
 
     // Map
     std::shared_ptr<Map> map_;
 
     // ID of the last frame use to detect loop
-    unsigned long lasLoopID_ = 0;
+    unsigned long lastLoopID_ = 0;
 };
 
 } // namespace

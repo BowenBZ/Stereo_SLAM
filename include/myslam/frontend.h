@@ -37,8 +37,6 @@ class Frontend {
 
     void SetViewer(std::shared_ptr<Viewer> viewer) { viewer_ = viewer; }
 
-    void SetLoopClosing(std::shared_ptr<LoopClosing> loopclosing) {loopclosing_ = loopclosing;}
-
     FrontendStatus GetStatus() const { return status_; }
 
     cv::Ptr<cv::ORB> GetORBExtractor() const {return orb_; }
@@ -74,9 +72,9 @@ class Frontend {
     int EstimateCurrentPose();
 
     /**
-     * set current frame as a keyframe and insert it into backend
+     * set current frame as a keyframe and insert it into map, and trigger backend
      */
-    void InsertKeyframe();
+    void InsertKeyframeAndTriggerBackend();
 
     /**
      * Try init the frontend with stereo images saved in current_frame_
@@ -111,15 +109,10 @@ class Frontend {
     bool BuildInitMap();
 
     /**
-     * Triangulate the 2D points in current frame
+     * Triangulate the 2D points who doesn't assign a mappoint and has a corresponding right feature in current frame
      * @return num of triangulated points
      */
     int TriangulateNewPoints();
-
-    /**
-     * Set the features in keyframe as new observation of the map points
-     */
-    void SetObservationsForKeyFrame();
 
     // data
     FrontendStatus status_ = FrontendStatus::INITING;
@@ -132,7 +125,6 @@ class Frontend {
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
     std::shared_ptr<Viewer> viewer_ = nullptr;
-    std::shared_ptr<LoopClosing> loopclosing_  = nullptr;
 
     SE3 relative_motion_;  // 当前帧与上一帧的相对运动，用于估计当前帧pose初值
 
