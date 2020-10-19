@@ -129,8 +129,8 @@ float LoopClosing::ComputeCovisibleMinScore(std::set<Frame::Ptr>& candidateKF) {
     float minScore = 1.0f;
     // std::string connect = "";
     // std::string scores = "";
-    for(auto& kf : curr_keyframe_->GetOrderedConnectedKeyFramesVector()) {
-        float score = ComputeScore(curr_keyframe_->BowVec_, kf->BowVec_);
+    for(auto& kf : curr_keyframe_->GetConnectedKeyFramesCounter()) {
+        float score = ComputeScore(curr_keyframe_->BowVec_, kf.first->BowVec_);
         minScore = (score < minScore) ? score : minScore;
         // connect += " " + std::to_string(kf->keyframe_id_) + ": " + std::to_string(curr_keyframe_->GetConnectedKeyFramesCounter()[kf]);
         // scores += " " + std::to_string(score);
@@ -214,7 +214,8 @@ float LoopClosing::ComputeMinGroupScore(const std::set<Frame::Ptr>& inputCandida
         float maxScore = kf->BoWScore_;
         Frame::Ptr frameWithLargestScore = kf;
 
-        for(auto& co_kf : kf->GetOrderedConnectedKeyFramesVector()) {
+        for(auto& co_kf_cnt : kf->GetConnectedKeyFramesCounter()) {
+            auto co_kf = co_kf_cnt.first;
             if(inputCandidateKF.count(co_kf)) {
                 groupScore += co_kf->BoWScore_;
                 if(co_kf->BoWScore_ > maxScore) {

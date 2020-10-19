@@ -56,7 +56,7 @@ private:
     // Lock for connected frames
     std::mutex connectedframe_mutex_;
     // Ordered connected keyframes from large weight to small
-    std::vector<Frame::Ptr> orderedConnectedKeyFrames_;
+    // std::vector<Frame::Ptr> orderedConnectedKeyFrames_;
     // Connected keyframes (has same observed mappoints) (weight>15 common mappoints) and the weight
     std::unordered_map<Frame::Ptr, int> connectedKeyFramesCounter_;
 
@@ -64,7 +64,7 @@ private:
     void AddConnection(Frame::Ptr frame, const int& weight);
 
     // Sort the orderedConnectedFrames
-    void ResortConnectedKeyframes();
+    // void ResortConnectedKeyframes();
 
 public:
 
@@ -91,11 +91,11 @@ public:
     // Get the connected keyframes as set
     std::set<Frame::Ptr> GetConnectedKeyFramesSet();
 
-    // Get the ordered connected keyframes vector
-    std::vector<Frame::Ptr> GetOrderedConnectedKeyFramesVector() {
-        std::unique_lock<std::mutex> lock(connectedframe_mutex_);
-        return orderedConnectedKeyFrames_;
-    }
+    // // Get the ordered connected keyframes vector
+    // std::vector<Frame::Ptr> GetOrderedConnectedKeyFramesVector() {
+    //     std::unique_lock<std::mutex> lock(connectedframe_mutex_);
+    //     return orderedConnectedKeyFrames_;
+    // }
 
     // Get the connected keyframes counter
     std::unordered_map<Frame::Ptr, int> GetConnectedKeyFramesCounter() {
