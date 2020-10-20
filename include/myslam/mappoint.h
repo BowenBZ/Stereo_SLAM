@@ -20,7 +20,9 @@ struct MapPoint {
     typedef std::shared_ptr<MapPoint> Ptr;
 
     unsigned long id_ = 0;  // ID
-    // bool is_outlier_ = false;
+
+    // when is_outlider_ is true, that means the observations is 0. no feature could observed this mappoint
+    bool is_outlier_ = false;
 
     MapPoint() {}
 

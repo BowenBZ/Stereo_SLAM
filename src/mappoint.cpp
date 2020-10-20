@@ -43,12 +43,16 @@ void MapPoint::RemoveKFObservation(std::shared_ptr<Feature> feature) {
         if (iter->lock() == feature) {
             observations_.erase(iter);
             // This observed feature is determined mismatch by backend, it shouldn't related to this mappoint
-            feature->map_point_.reset();
             break;
         }
     }
 
+    LOG(INFO) << "Remove observation, current is " << observations_.size();
+
     RemoveActiveKFObservation(feature);
+
+    if (observations_.size() == 0)
+        is_outlier_ = true;
 }
 
 void MapPoint::RemoveActiveKFObservation(std::shared_ptr<Feature> feature) {

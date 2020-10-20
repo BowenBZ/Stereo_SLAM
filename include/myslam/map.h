@@ -5,6 +5,7 @@
 #include "myslam/common_include.h"
 #include "myslam/frame.h"
 #include "myslam/mappoint.h"
+#include "myslam/config.h"
 
 namespace myslam {
 
@@ -19,7 +20,7 @@ class Map {
     typedef std::unordered_map<unsigned long, MapPoint::Ptr> LandmarksType;
     typedef std::unordered_map<unsigned long, Frame::Ptr> KeyframesType;
 
-    Map() {}
+    Map() {num_active_keyframes_ = Config::Get<int>("num_active_keyframes");}
 
     // Insert a new keyframe, called by frontend
     void InsertKeyFrame(Frame::Ptr frame);

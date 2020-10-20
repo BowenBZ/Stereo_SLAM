@@ -2,7 +2,10 @@
 #include<opencv2/core/core.hpp>
 #include "myslam/feature.h"
 #include "myslam/map.h"
-#include "myslam/mappoint.h"
+#include "myslam/g2o_types.h"
+#include "myslam/config.h"
+
+
 
 namespace myslam {
 
@@ -11,6 +14,7 @@ LoopClosing::LoopClosing(DBoW3::Vocabulary* vocabulary) {
     mpORBvocabulary_ = std::shared_ptr<DBoW3::Vocabulary>(vocabulary);
     wordObservedFrames_.resize(mpORBvocabulary_->size());
     matcher_flann_ = cv::FlannBasedMatcher(new cv::flann::LshIndexParams ( 5,10,2 ));
+    chi2_th_ = Config::Get<double> ("chi2_th");
     loopclosing_running_.store(true);
     loopclosing_thread_ = std::thread(std::bind(&LoopClosing::Run, this));
 }
@@ -33,9 +37,10 @@ void LoopClosing::Run()
     while (loopclosing_running_.load())
     {
         std::unique_lock<std::mutex> lock(data_mutex_);
-        // Stuck current thread until the map_update_ is notified by other thread 
-        // This automatically unlock the data_mutex_
-        // When the mpa_update is notified by other thread, the data_mutex_ will be locked
+        /* Stuck current thread until the map_update_ is notified by other thread 
+         This automatically unlock the data_mutex_
+         When the mpa_update is notified by other thread, the data_mutex_ will be locked
+        */
         map_update_.wait(lock);
 
         if(DetectLoop())
@@ -57,8 +62,9 @@ bool LoopClosing::DetectLoop() {
         return false;
     }
 
-    // Compute the minScore between curr_keyframe_ and covisible frames
-    // and select the non-covisible frames larges than minScore
+    /* Compute the minScore between curr_keyframe_ and covisible frames
+       and select the non-covisible frames larges than minScore
+    */
     std::set<Frame::Ptr> candidateKF0;
     float minScore = ComputeCovisibleMinScore(candidateKF0);
     if(candidateKF0.empty()) {
@@ -71,7 +77,7 @@ bool LoopClosing::DetectLoop() {
     std::set<Frame::Ptr> candidateKF1;
     float minCommonWords = ComputeNoncovisibleMinCommonWords(candidateKF0, candidateKF1);
     if(candidateKF1.empty()) {
-        LOG(INFO) << "No keyframe larges than minCommonWords";
+        LOG(INFO) << "No candidates larger than minCommonWords";
         prevGroupLenCounter_.clear();
         return false;
     }
@@ -80,7 +86,7 @@ bool LoopClosing::DetectLoop() {
     std::set<Frame::Ptr> candidateKF2;
     float minGroupScore = ComputeMinGroupScore(candidateKF1, candidateKF2);
     if (candidateKF2.empty()) {
-        LOG(INFO) << "No frame larges than minGroupScore";
+        LOG(INFO) << "No candidates larger than minGroupScore";
         prevGroupLenCounter_.clear();
         return false;
     }
@@ -88,6 +94,7 @@ bool LoopClosing::DetectLoop() {
     // Select the keyframes that consistent in different detect time
     std::set<Frame::Ptr> candidateKF3;
     SelectConsistentKFs(candidateKF2, candidateKF3);
+    // LOG(INFO) << "Consistent group size " << prevGroupLenCounter_.size();
     if (candidateKF3.empty()) {
         LOG(INFO) << "No consistent group";
         return false;
@@ -283,7 +290,7 @@ bool LoopClosing::ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF)
         std::vector<cv::KeyPoint> candidate_keypoints_left;
         cv::Mat candidate_descriptors_left;
         for(auto& kp : kf->features_left_) {
-            if(!kp->is_outlier_) {
+            if(!kp->is_outlier_ && !kp->map_point_.expired()) {
                 candidate_keypoints_left.push_back(kp->position_);
             }
         }
@@ -302,17 +309,25 @@ bool LoopClosing::ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF)
         } )->distance;
 
         // Establish the 3d-2d points pair
+        // float distance_threshold = std::min<float> (min_dis * 2.0f, 30.0f);
+        float distance_threshold = 30;
         std::unordered_map<MapPoint::Ptr, cv::Point2f> match_3d_2d_pts;
         for(auto& m : matches) {
-            if (m.distance < std::max<float> (min_dis * 2.0f, 30.0f) ) {
+            if (m.distance < distance_threshold) {
                 auto mappoint = kf->features_left_[m.queryIdx]->map_point_.lock();
-                if(mappoint) {
+                if(mappoint && !mappoint->is_outlier_) {
                     match_3d_2d_pts[mappoint] = curr_keypoints_left_[m.trainIdx].pt;
                 }
             }
         }
 
-        LOG(INFO) << "Min Distance: " << min_dis << " matched points: " << match_3d_2d_pts.size();
+        SE3 updatedCurrentPose;
+        int inliners = 0;
+        if (match_3d_2d_pts.size() >= 4) {
+            inliners = CalcPoseChange(kf, match_3d_2d_pts, updatedCurrentPose);
+        }
+
+        LOG(INFO) << "Loop ID: " << kf->keyframe_id_ << " Min Distance: " << min_dis << " matched points: " << match_3d_2d_pts.size() << " inliners: " << inliners;
         // if (match_3d_2d_pts.size() < 20) {
         //     continue;
         // }
@@ -320,6 +335,96 @@ bool LoopClosing::ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF)
 
     return false;
 }
+
+
+int LoopClosing::CalcPoseChange(const Frame::Ptr& loopFrame, const std::unordered_map<MapPoint::Ptr, cv::Point2f>& match_3d_2d_pt, SE3& currentPose) {
+    // setup g2o
+    typedef g2o::BlockSolver_6_3 BlockSolverType;
+    typedef g2o::LinearSolverDense<BlockSolverType::PoseMatrixType> LinearSolverType;
+    auto solver = new g2o::OptimizationAlgorithmLevenberg(
+        g2o::make_unique<BlockSolverType>(
+            g2o::make_unique<LinearSolverType>()));
+    g2o::SparseOptimizer optimizer;
+    optimizer.setAlgorithm(solver);
+
+    // camera pose vertex
+    VertexPose *vertex_pose = new VertexPose();
+    vertex_pose->setId(0);
+    vertex_pose->setEstimate(loopFrame->Pose());
+    optimizer.addVertex(vertex_pose);
+
+    // K
+    Mat33 K = camera_left_->K();
+
+    // ID of edges
+    int index = 1;
+    std::unordered_map<EdgeProjectionPoseOnly *, bool> edges;
+
+    // Use the features's connected mappoints (3D) and the features (2D)
+    for (auto& pair_3d_2d : match_3d_2d_pt) {
+        auto mappoint = pair_3d_2d.first;
+        EdgeProjectionPoseOnly *edge =
+                new EdgeProjectionPoseOnly(mappoint->GetPos(), K);
+        edge->setId(index++);
+        edge->setVertex(0, vertex_pose);
+        edge->setMeasurement(toVec2(pair_3d_2d.second));
+        edge->setInformation(Eigen::Matrix2d::Identity());
+        edge->setRobustKernel(new g2o::RobustKernelHuber);
+        optimizer.addEdge(edge);
+        edges[edge] = false;
+    }
+
+    // estimate the Pose the determine the outliers
+    unsigned int cnt_outlier = 0;
+
+    // Optimize 4 * 10 times
+    // During the first 2 * 10 times, set the outlier not optmized
+    // During the last 2 * 10 times, remove the kernel
+    for (int iteration = 0; iteration < 4; ++iteration) {
+        vertex_pose->setEstimate(loopFrame->Pose());
+
+        // Only optmize level 0 edges
+        optimizer.initializeOptimization();
+        optimizer.optimize(10);
+        cnt_outlier = 0;
+
+        // count the outliers
+        for (auto& edge : edges) {
+            auto e = edge.first;
+
+            // Since the is_outlier_ is true, this feature is not optimized
+            // computeError needs to be trigger manually
+            if (edge.second) {
+                e->computeError();
+            }
+
+            if (e->chi2() > chi2_th_) {
+                // features[i]->is_outlier_ = true;
+                edges[e] = true;
+                e->setLevel(1);
+                cnt_outlier++;
+            } else {
+                // features[i]->is_outlier_ = false;
+                edges[e] = false;
+                e->setLevel(0);
+            };
+
+            if (iteration == 2) {
+                e->setRobustKernel(nullptr);
+            }
+        }
+
+        
+        if(cnt_outlier == match_3d_2d_pt.size())
+            break;
+    }
+
+    // Set pose
+    currentPose = vertex_pose->estimate();
+
+    return match_3d_2d_pt.size() - cnt_outlier;
+}
+
 
 
 } // namespace

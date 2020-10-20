@@ -15,8 +15,12 @@ camera.cy: 249.7
 # Camera.cx: 607.1928
 # Camera.cy: 185.2157
 
-num_features: 150
-num_features_init: 50
-num_features_tracking: 100  # consider increase
+num_features: 200                      # max number of ORB detector could retain
 scale_factor: 1.2
 level_pyramid: 8
+num_features_init: 100                 # number to initialize the map
+num_features_tracking: 100             # consider whether tracking good or bad
+num_features_tracking_bad_: 20         # consider whether tracking back or lost
+num_features_needed_for_keyframe: 100  # consider when to determine a new keyframe
+num_active_keyframes: 5                # active keyframes kept in map
+chi2_th: 6.0                           # scale to determine outlier in loopclosing

@@ -63,7 +63,7 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
     optimizer.setAlgorithm(solver);
 
     // Add pose vertices
-    std::map<unsigned long, VertexPose *> verticesPoseMap;
+    std::unordered_map<unsigned long, VertexPose *> verticesPoseMap;
     unsigned long max_kf_id = 0;
     for (auto &keyframe : keyframes) {
         auto kf = keyframe.second;
@@ -90,14 +90,14 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
     double chi2_th = 5.991;
 
     // Mappoint vertex
-    std::map<unsigned long, VertexXYZ *> verticesMappointMap;
+    std::unordered_map<unsigned long, VertexXYZ *> verticesMappointMap;
 
     // Edge and features
-    std::map<EdgeProjection *, Feature::Ptr> edges_and_features;
+    std::unordered_map<EdgeProjection *, Feature::Ptr> edges_and_features;
 
     for (auto &mappoint : mappoints) {
-        // if (mappoint.second->is_outlier_) 
-        //     continue;
+        if (mappoint.second->is_outlier_) 
+            continue;
 
         // Iterates all observed features from active keyframes to build edges connecting keyframe and this mappoint
         for (auto &ob : mappoint.second->GetActiveObs()) {
@@ -174,17 +174,17 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
         }
     }
 
-    // TODO: maybe set is_outlier for mappoint?
+    // LOG(INFO) << "inlier ratio: " << cnt_inlier / double(cnt_inlier + cnt_outlier);
+
     // set is_outlier for feature since the edge between the pose and this mappoint cannot be optimized 
-    // outlier features doesn't have a assigned mappoint and won't participate in the optimization
-    // the mappoint should remove the observations from outlier feature should be deleted
+    // outlier features doesn't have a assigned mappoint, and the mappoint should remove the observations from outlier feature should be deleted
+    // when the mappoint has no observations, the mappoint will be set is_outlier
     for (auto &ef : edges_and_features) {
         if (ef.first->chi2() > chi2_th) {
             ef.second->is_outlier_ = true;
-            auto mappoint = ef.second->map_point_.lock();
-            if (mappoint) {
-                mappoint->RemoveKFObservation(ef.second);
-            }
+            LOG(INFO) << "ready to remove observation";
+            ef.second->map_point_.lock()->RemoveKFObservation(ef.second);
+            ef.second->map_point_.reset();
         } else {
             ef.second->is_outlier_ = false;
         }

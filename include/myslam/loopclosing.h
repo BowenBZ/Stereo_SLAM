@@ -5,6 +5,9 @@
 #include <opencv2/features2d.hpp>
 #include "DBoW3/DBoW3.h"
 #include "myslam/frame.h"
+#include "myslam/camera.h"
+#include "myslam/mappoint.h"
+#include "myslam/algorithm.h"
 
 namespace myslam {
 
@@ -27,6 +30,8 @@ public:
     void SetMap(std::shared_ptr<Map> map) {map_ = map; }
 
     void SetORBExtractor(cv::Ptr<cv::ORB> orb) { orb_ = orb; }
+
+    void SetCamera(Camera::Ptr camera) {camera_left_ = camera; }
 
 private:
     // The main function of loop closure detection
@@ -66,6 +71,17 @@ private:
     // Calculate the pose change between the loop frame and curr_keyframe_, return true if the loop frame meets the requirements 
     bool ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF);
 
+    /* Use 3D-2D BA VO to estimate pose change from loop frame to current frame
+       3D points are the mappoints of loop frame
+       2D points are the features of curr_keyframe_
+       Initial estimate value is the loop frame's pose
+       Final estimate value is the T_{cw}
+       return number of inliers
+    */
+    int CalcPoseChange(const Frame::Ptr& loopFrame, 
+                       const std::unordered_map<MapPoint::Ptr, cv::Point2f>& match_3d_2d_pt, 
+                       SE3& pose);
+
     // The thread of loop closure detection
     std::thread loopclosing_thread_;
 
@@ -98,10 +114,16 @@ private:
     // Contains the groups with length from last time detection
     std::vector<std::pair<std::set<Frame::Ptr>, int>> prevGroupLenCounter_;
 
+    // Camera model, used to get camera's parameteres
+    Camera::Ptr camera_left_;
+
     // The keyframe has a loop with curr_keyframe_
     Frame::Ptr loopFrame_;
     // The pose from keyframe to curr_keyframe_
     SE3 loopToCurrentPose_;
+
+    // The threshold to determine the outliers
+    double chi2_th_ = 6.0f;
 
     // Map
     std::shared_ptr<Map> map_;

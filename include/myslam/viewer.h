@@ -41,6 +41,8 @@ class Viewer {
 
     void DrawMapPoints();
 
+    void DrawOtherFrames();
+
     void FollowCurrentFrame(pangolin::OpenGlRenderState& vis_camera);
 
     /// plot the features in current frame into an image

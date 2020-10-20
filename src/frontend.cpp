@@ -21,7 +21,9 @@ Frontend::Frontend() {
                              Config::Get<double> ("scale_factor"), 
                              Config::Get<int> ( "level_pyramid" ) );
     num_features_init_ = Config::Get<int>("num_features_init");
-    num_features_ = Config::Get<int>("num_features");
+    num_features_tracking_ = Config::Get<int>("num_features_tracking");
+    num_features_tracking_bad_ = Config::Get<int>("num_features_tracking_bad");
+    num_features_needed_for_keyframe_ = Config::Get<int>("num_features_needed_for_keyframe");
 }
 
 bool Frontend::AddFrame(myslam::Frame::Ptr frame) {
