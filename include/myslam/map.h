@@ -5,6 +5,7 @@
 #include "myslam/common_include.h"
 #include "myslam/frame.h"
 #include "myslam/mappoint.h"
+#include "myslam/config.h"
 
 namespace myslam {
 
@@ -19,11 +20,11 @@ class Map {
     typedef std::unordered_map<unsigned long, MapPoint::Ptr> LandmarksType;
     typedef std::unordered_map<unsigned long, Frame::Ptr> KeyframesType;
 
-    Map() {}
+    Map() {num_active_keyframes_ = Config::Get<int>("num_active_keyframes");}
 
-    /// 增加一个关键帧
+    // Insert a new keyframe, called by frontend
     void InsertKeyFrame(Frame::Ptr frame);
-    /// 增加一个地图顶点
+    // Insert a new mappoint, called by frontend
     void InsertMapPoint(MapPoint::Ptr map_point);
 
     /// 获取所有地图点
@@ -49,23 +50,30 @@ class Map {
         return active_keyframes_;
     }
 
-    /// 清理map中观测数量为零的点
-    void CleanMap();
 
    private:
+
+    /**
+     * Set the features in new keyframe as new observation of the map points
+    */
+    void SetMappointObservationsForKeyframe();
+
     // 将旧的关键帧置为不活跃状态
     void RemoveOldKeyframe();
 
+    // Remove the active mappoints whose active_observations_ is 0
+    void CleanMappoints();
+    
     std::mutex data_mutex_;
     LandmarksType landmarks_;         // all landmarks
-    LandmarksType active_landmarks_;  // active landmarks
+    LandmarksType active_landmarks_;  // active landmarks, maximum is 7
     KeyframesType keyframes_;         // all key-frames
     KeyframesType active_keyframes_;  // active key-frames
 
     Frame::Ptr current_frame_ = nullptr;
 
     // settings
-    int num_active_keyframes_ = 7;  // 激活的关键帧数量
+    unsigned int num_active_keyframes_ = 7;  // 激活的关键帧数量
 };
 }  // namespace myslam
 

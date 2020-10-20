@@ -23,38 +23,43 @@
 namespace myslam {
 
 void Map::InsertKeyFrame(Frame::Ptr frame) {
-    current_frame_ = frame;
-    if (keyframes_.find(frame->keyframe_id_) == keyframes_.end()) {
-        keyframes_.insert(make_pair(frame->keyframe_id_, frame));
-        active_keyframes_.insert(make_pair(frame->keyframe_id_, frame));
-    } else {
-        keyframes_[frame->keyframe_id_] = frame;
-        active_keyframes_[frame->keyframe_id_] = frame;
-    }
+    std::unique_lock<std::mutex> lck(data_mutex_);
 
+    current_frame_ = frame;
+    keyframes_[frame->keyframe_id_] = frame;
+    active_keyframes_[frame->keyframe_id_] = frame;
+
+    SetMappointObservationsForKeyframe();
     if (active_keyframes_.size() > num_active_keyframes_) {
         RemoveOldKeyframe();
     }
 }
 
-void Map::InsertMapPoint(MapPoint::Ptr map_point) {
-    if (landmarks_.find(map_point->id_) == landmarks_.end()) {
-        landmarks_.insert(make_pair(map_point->id_, map_point));
-        active_landmarks_.insert(make_pair(map_point->id_, map_point));
-    } else {
-        landmarks_[map_point->id_] = map_point;
-        active_landmarks_[map_point->id_] = map_point;
+void Map::SetMappointObservationsForKeyframe() {
+    for (auto &feat : current_frame_->features_left_) {
+        auto mp = feat->map_point_.lock();
+        if (mp) mp->AddKFObservation(feat);
     }
 }
 
+void Map::InsertMapPoint(MapPoint::Ptr map_point) {
+    std::unique_lock<std::mutex> lck(data_mutex_);
+
+    landmarks_[map_point->id_] = map_point;
+    active_landmarks_[map_point->id_] = map_point;
+}
+
 void Map::RemoveOldKeyframe() {
-    if (current_frame_ == nullptr) return;
+    if (current_frame_ == nullptr) 
+        return;
+
     // 寻找与当前帧最近与最远的两个关键帧
     double max_dis = 0, min_dis = 9999;
     double max_kf_id = 0, min_kf_id = 0;
     auto Twc = current_frame_->Pose().inverse();
     for (auto& kf : active_keyframes_) {
-        if (kf.second == current_frame_) continue;
+        if (kf.second == current_frame_) 
+            continue;
         auto dis = (kf.second->Pose() * Twc).log().norm();
         if (dis > max_dis) {
             max_dis = dis;
@@ -82,26 +87,20 @@ void Map::RemoveOldKeyframe() {
     for (auto feat : frame_to_remove->features_left_) {
         auto mp = feat->map_point_.lock();
         if (mp) {
-           mp->RemoveObservation(feat);
-        }
-    }
-    for (auto feat : frame_to_remove->features_right_) {
-        if (feat == nullptr) continue;
-        auto mp = feat->map_point_.lock();
-        if (mp) {
-            mp->RemoveObservation(feat);
+           mp->RemoveActiveKFObservation(feat);
         }
     }
 
-    CleanMap();
+    // The map_point doesn't have a right feature observation
+
+    CleanMappoints();
 }
 
-void Map::CleanMap() {
+void Map::CleanMappoints() {
     int cnt_landmark_removed = 0;
     for (auto iter = active_landmarks_.begin(); iter != active_landmarks_.end(); ) {
-        if (iter->second->observed_times_ == 0) {
+        if (iter->second->GetActiveObsCount() == 0) {
             iter = active_landmarks_.erase(iter);
-            // id_to_remove.push_back(iter->second->id_);
             cnt_landmark_removed++;
         }
         else

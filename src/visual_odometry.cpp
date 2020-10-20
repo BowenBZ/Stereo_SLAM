@@ -4,6 +4,7 @@
 #include "myslam/visual_odometry.h"
 #include <chrono>
 #include "myslam/config.h"
+#include "DBoW3/DBoW3.h"
 
 namespace myslam {
 
@@ -20,11 +21,17 @@ bool VisualOdometry::Init() {
         Dataset::Ptr(new Dataset(Config::Get<std::string>("dataset_dir")));
     CHECK_EQ(dataset_->Init(), true);
 
+    // Load ORB vocabulary
+    LOG(INFO) << "Loading ORB Vocabulary...";
+    DBoW3::Vocabulary* mpVocabulary = new DBoW3::Vocabulary(Config::Get<std::string>("vocabulary_dir"));
+    LOG(INFO) << "Vocabulary loaded!";
+
     // create components and links
     frontend_ = Frontend::Ptr(new Frontend);
     backend_ = Backend::Ptr(new Backend);
     map_ = Map::Ptr(new Map);
     viewer_ = Viewer::Ptr(new Viewer);
+    loopclosing_ = LoopClosing::Ptr(new LoopClosing(mpVocabulary));
 
     frontend_->SetBackend(backend_);
     frontend_->SetMap(map_);
@@ -33,6 +40,11 @@ bool VisualOdometry::Init() {
 
     backend_->SetMap(map_);
     backend_->SetCameras(dataset_->GetCamera(0), dataset_->GetCamera(1));
+    backend_->SetLoopClosing(loopclosing_);
+
+    loopclosing_->SetORBExtractor(frontend_->GetORBExtractor());
+    loopclosing_->SetMap(map_);
+    loopclosing_->SetCamera(dataset_->GetCamera(0));
 
     viewer_->SetMap(map_);
 

@@ -12,6 +12,7 @@ namespace myslam {
 
 class Backend;
 class Viewer;
+class LoopClosing;
 
 enum class FrontendStatus { INITING, TRACKING_GOOD, TRACKING_BAD, LOST };
 
@@ -37,6 +38,8 @@ class Frontend {
     void SetViewer(std::shared_ptr<Viewer> viewer) { viewer_ = viewer; }
 
     FrontendStatus GetStatus() const { return status_; }
+
+    cv::Ptr<cv::ORB> GetORBExtractor() const {return orb_; }
 
     void SetCameras(Camera::Ptr left, Camera::Ptr right) {
         camera_left_ = left;
@@ -69,10 +72,9 @@ class Frontend {
     int EstimateCurrentPose();
 
     /**
-     * set current frame as a keyframe and insert it into backend
-     * @return true if success
+     * set current frame as a keyframe and insert it into map, and trigger backend
      */
-    bool InsertKeyframe();
+    void InsertKeyframeAndTriggerBackend();
 
     /**
      * Try init the frontend with stereo images saved in current_frame_
@@ -107,15 +109,10 @@ class Frontend {
     bool BuildInitMap();
 
     /**
-     * Triangulate the 2D points in current frame
+     * Triangulate the 2D points who doesn't assign a mappoint and has a corresponding right feature in current frame
      * @return num of triangulated points
      */
     int TriangulateNewPoints();
-
-    /**
-     * Set the features in keyframe as new observation of the map points
-     */
-    void SetObservationsForKeyFrame();
 
     // data
     FrontendStatus status_ = FrontendStatus::INITING;
@@ -133,15 +130,15 @@ class Frontend {
 
     int tracking_inliers_ = 0;  // inliers, used for testing new keyframes
 
-    // params
-    int num_features_ = 200;
-    int num_features_init_ = 100;       // Required number of initial features
+    // params, see default.yaml
+    int num_features_init_ = 100;
     int num_features_tracking_ = 50;
     int num_features_tracking_bad_ = 20;
     int num_features_needed_for_keyframe_ = 80;
 
     // utilities
-    cv::Ptr<cv::GFTTDetector> gftt_;  // feature detector in opencv
+    //cv::Ptr<cv::GFTTDetector> gftt_;  // feature detector in opencv
+    cv::Ptr<cv::ORB> orb_;
 };
 
 }  // namespace myslam

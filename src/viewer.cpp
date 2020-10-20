@@ -50,7 +50,7 @@ void Viewer::ThreadLoop() {
             .SetBounds(0.0, 1.0, 0.0, 1.0, -1024.0f / 768.0f)
             .SetHandler(new pangolin::Handler3D(vis_camera));
 
-    const float current_color[3] = {1.0, 0, 0};
+    const float red[3] = {1.0, 0, 0};
 
     while (!pangolin::ShouldQuit() && viewer_running_) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -59,7 +59,7 @@ void Viewer::ThreadLoop() {
 
         std::unique_lock<std::mutex> lock(viewer_data_mutex_);
         if (current_frame_) {
-            DrawFrame(current_frame_, current_color);
+            DrawFrame(current_frame_, red);
             FollowCurrentFrame(vis_camera);
 
             cv::Mat img = PlotFrameImage();
@@ -68,6 +68,7 @@ void Viewer::ThreadLoop() {
         }
 
         if (map_) {
+            DrawOtherFrames();
             DrawMapPoints();
         }
 
@@ -84,8 +85,7 @@ cv::Mat Viewer::PlotFrameImage() {
     for (size_t i = 0; i < current_frame_->features_left_.size(); ++i) {
         if (current_frame_->features_left_[i]->map_point_.lock()) {
             auto feat = current_frame_->features_left_[i];
-            cv::circle(img_out, feat->position_.pt, 2, cv::Scalar(0, 250, 0),
-                       2);
+            cv::circle(img_out, feat->position_.pt, 2, cv::Scalar(0, 250, 0), 2);
         }
     }
     return img_out;
@@ -145,19 +145,43 @@ void Viewer::DrawFrame(Frame::Ptr frame, const float* color) {
     glPopMatrix();
 }
 
-void Viewer::DrawMapPoints() {
-    const float green[3] = {0, 1.0, 0};
-    const float blue[3] = {0, 0, 1.0};
+void Viewer::DrawOtherFrames() {
+    const float activeColor[3]= {0.424, 0.769, 0.604};
+    const float normalColor[3] = {0, 0, 1.0};
 
     for (auto& kf : all_keyframes_) {
-        DrawFrame(kf.second, blue);
+        if(kf.first == current_frame_->keyframe_id_)
+            continue;
+
+        if(active_keyframes_.count(kf.first)) {
+            DrawFrame(kf.second, activeColor);
+        }
+        else {
+            DrawFrame(kf.second, normalColor);
+        }
     }
+}
+
+void Viewer::DrawMapPoints() {
+    const float activeColor[3] = {0.992, 0.702, 0.329};
+    const float normalColor[3] = {0, 1.0, 0};
+    const float outliderColor[3] = {1.0, 0, 0};
 
     glPointSize(2);
     glBegin(GL_POINTS);
     for (auto& landmark : all_landmarks_) {
-        auto pos = landmark.second->Pos();
-        glColor3f(green[0], green[1], green[2]);
+        if(active_landmarks_.count(landmark.first)) {
+            glColor3f(activeColor[0], activeColor[1], activeColor[2]);
+        }
+        else {
+            if(landmark.second->is_outlier_) {
+                glColor3f(outliderColor[0], outliderColor[1], outliderColor[2]);
+            }
+            else {
+                glColor3f(normalColor[0], normalColor[1], normalColor[2]);
+            }
+        }
+        auto pos = landmark.second->GetPos();
         glVertex3d(pos[0], pos[1], pos[2]);
     }
     glEnd();

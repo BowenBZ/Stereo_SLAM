@@ -8,6 +8,7 @@
 #include "myslam/common_include.h"
 #include "myslam/frame.h"
 #include "myslam/map.h"
+#include "myslam/loopclosing.h"
 
 namespace myslam {
 class Map;
@@ -34,8 +35,10 @@ class Backend {
     /// 设置地图
     void SetMap(std::shared_ptr<Map> map) { map_ = map; }
 
+    void SetLoopClosing(std::shared_ptr<LoopClosing> loopclosing) {loopclosing_ = loopclosing;}
+
     /// 触发地图更新，启动优化
-    void UpdateMap();
+    void UpdateMap(Frame::Ptr frame);
 
     /// 关闭后端线程
     void Stop();
@@ -55,6 +58,10 @@ class Backend {
     std::atomic<bool> backend_running_;
 
     Camera::Ptr cam_left_ = nullptr, cam_right_ = nullptr;
+
+    std::shared_ptr<LoopClosing> loopclosing_  = nullptr;
+
+    Frame::Ptr current_keyframe_;
 };
 
 }  // namespace myslam

@@ -16,8 +16,9 @@ Backend::Backend() {
     backend_thread_ = std::thread(std::bind(&Backend::BackendLoop, this));
 }
 
-void Backend::UpdateMap() {
+void Backend::UpdateMap(Frame::Ptr frame) {
     std::unique_lock<std::mutex> lock(data_mutex_);
+    current_keyframe_ = frame;
     map_update_.notify_one();
 }
 
@@ -34,16 +35,23 @@ void Backend::BackendLoop() {
 
         /// 后端仅优化激活的Frames和Landmarks
         Map::KeyframesType active_kfs = map_->GetActiveKeyFrames();
-        Map::LandmarksType active_landmarks = map_->GetActiveMapPoints();
-        Optimize(active_kfs, active_landmarks);
+        Map::LandmarksType active_mappoints = map_->GetActiveMapPoints();
+        Optimize(active_kfs, active_mappoints);
+
+        // Update covisible graph since some mappoint may be deleted
+        // Prepard for the loopclosing
+        current_keyframe_->UpdateCovisibleConnections();
+
+        // Let loop closing detect loop because we have a new keyframe
+        loopclosing_->DetectLoop(current_keyframe_);
     }
 }
 
 // BA for poses and space points
 void Backend::Optimize(Map::KeyframesType &keyframes,
-                       Map::LandmarksType &landmarks) {
+                       Map::LandmarksType &mappoints) {
 
-    // LOG(INFO) << "Start backend optimizing: keyframes: " << keyframes.size() << " landmarks: " << landmarks.size();
+    // LOG(INFO) << "Start backend optimizing: keyframes: " << keyframes.size() << " mappoints: " << mappoints.size();
 
     // setup g2o
     typedef g2o::BlockSolver_6_3 BlockSolverType;
@@ -54,8 +62,8 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
     g2o::SparseOptimizer optimizer;
     optimizer.setAlgorithm(solver);
 
-    // pose 顶点，使用Keyframe id
-    std::map<unsigned long, VertexPose *> vertices;
+    // Add pose vertices
+    std::unordered_map<unsigned long, VertexPose *> verticesPoseMap;
     unsigned long max_kf_id = 0;
     for (auto &keyframe : keyframes) {
         auto kf = keyframe.second;
@@ -67,32 +75,54 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
             max_kf_id = kf->keyframe_id_;
         }
 
-        vertices.insert({kf->keyframe_id_, vertex_pose});
+        // Record in map
+        verticesPoseMap[kf->keyframe_id_] = vertex_pose;
     }
-
-    // 路标顶点，使用路标id索引
-    std::map<unsigned long, VertexXYZ *> vertices_landmarks;
 
     // K 和左右外参
     Mat33 K = cam_left_->K();
     SE3 left_ext = cam_left_->pose();
     SE3 right_ext = cam_right_->pose();
 
-    // edges
+    // ID of edges
     int index = 1;
-    double chi2_th = 5.991;  // robust kernel 阈值
-    std::map<EdgeProjection *, Feature::Ptr> edges_and_features;
+    // robust kernel 阈值
+    double chi2_th = 5.991;
 
-    for (auto &landmark : landmarks) {
-        if (landmark.second->is_outlier_) continue;
-        unsigned long landmark_id = landmark.second->id_;
-        auto observations = landmark.second->GetObs();
-        for (auto &obs : observations) {
-            if (obs.lock() == nullptr) continue;
-            auto feat = obs.lock();
-            if (feat->is_outlier_ || feat->frame_.lock() == nullptr) continue;
+    // Mappoint vertex
+    std::unordered_map<unsigned long, VertexXYZ *> verticesMappointMap;
+
+    // Edge and features
+    std::unordered_map<EdgeProjection *, Feature::Ptr> edges_and_features;
+
+    for (auto &mappoint : mappoints) {
+        if (mappoint.second->is_outlier_) 
+            continue;
+
+        // Iterates all observed features from active keyframes to build edges connecting keyframe and this mappoint
+        for (auto &ob : mappoint.second->GetActiveObs()) {
+            auto feat = ob.lock();
+            if (feat == nullptr || feat->is_outlier_) 
+                continue;
 
             auto frame = feat->frame_.lock();
+            if (frame == nullptr)
+                continue;
+
+            // Add mappoint vertex
+            unsigned long mappoint_id = mappoint.first;
+            if (!verticesMappointMap.count(mappoint_id)) {
+                VertexXYZ *v = new VertexXYZ;
+                v->setEstimate(mappoint.second->GetPos());
+                v->setId(mappoint_id + max_kf_id + 1);
+                v->setMarginalized(true);
+                optimizer.addVertex(v);
+
+                // Record in map
+                verticesMappointMap[mappoint_id] = v;
+            }
+
+            // Add edge
             EdgeProjection *edge = nullptr;
             if (feat->is_on_left_image_) {
                 edge = new EdgeProjection(K, left_ext);
@@ -100,30 +130,20 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
                 edge = new EdgeProjection(K, right_ext);
             }
 
-            // 如果landmark还没有被加入优化，则新加一个顶点
-            if (vertices_landmarks.find(landmark_id) ==
-                vertices_landmarks.end()) {
-                VertexXYZ *v = new VertexXYZ;
-                v->setEstimate(landmark.second->Pos());
-                v->setId(landmark_id + max_kf_id + 1);
-                v->setMarginalized(true);
-                vertices_landmarks.insert({landmark_id, v});
-                optimizer.addVertex(v);
-            }
+            // Set two connecting vertex
+            edge->setVertex(0, verticesPoseMap[frame->keyframe_id_]);    // pose vertex
+            edge->setVertex(1, verticesMappointMap[mappoint_id]);   // mappoint vertex
 
-            edge->setId(index);
-            edge->setVertex(0, vertices.at(frame->keyframe_id_));    // pose
-            edge->setVertex(1, vertices_landmarks.at(landmark_id));  // landmark
+            edge->setId(index++);
             edge->setMeasurement(toVec2(feat->position_.pt));
             edge->setInformation(Mat22::Identity());
             auto rk = new g2o::RobustKernelHuber();
             rk->setDelta(chi2_th);
             edge->setRobustKernel(rk);
-            edges_and_features.insert({edge, feat});
-
             optimizer.addEdge(edge);
 
-            index++;
+            // Record edges in map
+            edges_and_features[edge] = feat;
         }
     }
 
@@ -131,6 +151,7 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
     optimizer.initializeOptimization();
     optimizer.optimize(10);
 
+    // Calculate a threshold to make inliners ratio > 0.5
     int cnt_outlier = 0, cnt_inlier = 0;
     int iteration = 0;
     while (iteration < 5) {
@@ -153,25 +174,28 @@ void Backend::Optimize(Map::KeyframesType &keyframes,
         }
     }
 
+    // LOG(INFO) << "inlier ratio: " << cnt_inlier / double(cnt_inlier + cnt_outlier);
+
+    // set is_outlier for feature since the edge between the pose and this mappoint cannot be optimized 
+    // outlier features doesn't have a assigned mappoint, and the mappoint should remove the observations from outlier feature should be deleted
+    // when the mappoint has no observations, the mappoint will be set is_outlier
     for (auto &ef : edges_and_features) {
         if (ef.first->chi2() > chi2_th) {
             ef.second->is_outlier_ = true;
-            // remove the observation
-            ef.second->map_point_.lock()->RemoveObservation(ef.second);
+            LOG(INFO) << "ready to remove observation";
+            ef.second->map_point_.lock()->RemoveKFObservation(ef.second);
+            ef.second->map_point_.reset();
         } else {
             ef.second->is_outlier_ = false;
         }
     }
 
-    // LOG(INFO) << "Outlier/Inlier in backend optimization: " << cnt_outlier << "/"
-         //     << cnt_inlier;
-
     // Set pose and lanrmark position
-    for (auto &v : vertices) {
-        keyframes.at(v.first)->SetPose(v.second->estimate());
+    for (auto &v : verticesPoseMap) {
+        keyframes[v.first]->SetPose(v.second->estimate());
     }
-    for (auto &v : vertices_landmarks) {
-        landmarks.at(v.first)->SetPos(v.second->estimate());
+    for (auto &v : verticesMappointMap) {
+        mappoints[v.first]->SetPos(v.second->estimate());
     }
 }
 

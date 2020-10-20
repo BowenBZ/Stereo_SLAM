@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(myslam)
 
 set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
 
 set(CMAKE_CXX_FLAGS "-std=c++11 -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE  "-std=c++11 -O3 -fopenmp -pthread")
@@ -12,7 +13,8 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 ############### dependencies ######################
 # Eigen
-include_directories("/usr/include/eigen3")
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIRS})
 
 # OpenCV
 find_package(OpenCV 3.1 REQUIRED)
@@ -46,6 +48,10 @@ include_directories(${GFLAGS_INCLUDE_DIRS})
 find_package(CSparse REQUIRED)
 include_directories(${CSPARSE_INCLUDE_DIR})
 
+# dbow3
+find_package(DBoW3 REQUIRED)
+include_directories(${DBoW3_INCLUDE_DIRS})
+
 set(THIRD_PARTY_LIBS
         ${OpenCV_LIBS}
         ${Sophus_LIBRARIES}
@@ -56,6 +62,7 @@ set(THIRD_PARTY_LIBS
         ${GFLAGS_LIBRARIES}
         pthread
         ${CSPARSE_LIBRARY}
+        ${DBoW3_LIBS}
         )
 
 enable_testing()
@@ -63,5 +70,5 @@ enable_testing()
 ############### source and test ######################
 include_directories(${PROJECT_SOURCE_DIR}/include)
 add_subdirectory(src)
-add_subdirectory(test)
+# add_subdirectory(test)
 add_subdirectory(app)

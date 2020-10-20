@@ -28,7 +28,9 @@ struct Feature {
     cv::KeyPoint position_;              // 2D提取位置
     std::weak_ptr<MapPoint> map_point_;  // 关联地图点
 
-    bool is_outlier_ = false;       // 是否为异常点
+    // is_outlider_ is true means the feature matching is wrong
+    // this could happens in frontend or backend
+    bool is_outlier_ = false;
     bool is_on_left_image_ = true;  // 标识是否提在左图，false为右图
 
    public:

@@ -31,13 +31,35 @@ MapPoint::Ptr MapPoint::CreateNewMappoint() {
     return new_mappoint;
 }
 
-void MapPoint::RemoveObservation(std::shared_ptr<Feature> feat) {
+void MapPoint::AddKFObservation(std::shared_ptr<Feature> feature) {
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    observations_.push_back(feature);
+    active_observations_.push_back(feature);
+}
+
+void MapPoint::RemoveKFObservation(std::shared_ptr<Feature> feature) {
     std::unique_lock<std::mutex> lck(data_mutex_);
     for (auto iter = observations_.begin(); iter != observations_.end(); iter++) {
-        if (iter->lock() == feat) {
+        if (iter->lock() == feature) {
             observations_.erase(iter);
-            feat->map_point_.reset();
-            observed_times_--;
+            // This observed feature is determined mismatch by backend, it shouldn't related to this mappoint
+            break;
+        }
+    }
+
+    LOG(INFO) << "Remove observation, current is " << observations_.size();
+
+    RemoveActiveKFObservation(feature);
+
+    if (observations_.size() == 0)
+        is_outlier_ = true;
+}
+
+void MapPoint::RemoveActiveKFObservation(std::shared_ptr<Feature> feature) {
+    std::unique_lock<std::mutex> lck(data_mutex_);
+    for (auto iter = active_observations_.begin(); iter != active_observations_.end(); iter++) {
+        if (iter->lock() == feature) {
+            active_observations_.erase(iter);
             break;
         }
     }
