@@ -37,37 +37,6 @@ public:
     // corresponding features in right image, set to nullptr if no corresponding
     std::vector<std::shared_ptr<Feature>> features_right_;
 
-    // Bag of Words Vector structures.
-    // 内部实际存储的是std::map<WordId, WordValue>
-    // WordId 和 WordValue 表示Word在叶子中的id 和权重
-    DBoW3::BowVector BowVec_;
-
-    // The score of this frame with current detected key-frame, used by loopclosing
-    float BoWScore_;
-    // Has common words with the keyframe with this ID, used by loopclosing 
-    unsigned long commonWordsKeyframeID;
-    // How many common words does this frame has with the frame commonWordsKeyFrameID, used by loopclosing
-    int commonWordsCount;
-
-private:
-    std::mutex pose_mutex_;          // Pose数据锁
-    SE3 pose_;                       // Tcw 形式Pose
-
-    // Lock for connected frames
-    std::mutex connectedframe_mutex_;
-    // Ordered connected keyframes from large weight to small
-    // std::vector<Frame::Ptr> orderedConnectedKeyFrames_;
-    // Connected keyframes (has same observed mappoints) (weight>15 common mappoints) and the weight
-    std::unordered_map<Frame::Ptr, int> connectedKeyFramesCounter_;
-
-    // Add the connection of frame with weight to current frame
-    void AddConnection(Frame::Ptr frame, const int& weight);
-
-    // Sort the orderedConnectedFrames
-    // void ResortConnectedKeyframes();
-
-public:
-
     Frame() {}
 
     // Get pose, thread safe
@@ -85,17 +54,26 @@ public:
     /// 设置关键帧并分配并键帧id
     void SetKeyFrame();
 
+    // Bag of Words Vector structures.
+    // 内部实际存储的是std::map<WordId, WordValue>
+    // WordId 和 WordValue 表示Word在叶子中的id 和权重
+    DBoW3::BowVector BowVec_;
+
+    // The score of this frame with current detected key-frame, used by loopclosing
+    float BoWScore_;
+    // Has common words with the keyframe with this ID, used by loopclosing 
+    unsigned long commonWordsKeyframeID;
+    // How many common words does this frame has with the frame commonWordsKeyFrameID, used by loopclosing
+    int commonWordsCount;
+
     // Update the co-visible key-frames when this frame is a key-frame 
     void UpdateCovisibleConnections();
 
     // Get the connected keyframes as set
     std::set<Frame::Ptr> GetConnectedKeyFramesSet();
 
-    // // Get the ordered connected keyframes vector
-    // std::vector<Frame::Ptr> GetOrderedConnectedKeyFramesVector() {
-    //     std::unique_lock<std::mutex> lock(connectedframe_mutex_);
-    //     return orderedConnectedKeyFrames_;
-    // }
+    // Get the ordered connected keyframes vector with size
+    std::vector<Frame::Ptr> GetOrderedConnectedKeyFramesVector(unsigned int size);
 
     // Get the connected keyframes counter
     std::unordered_map<Frame::Ptr, int> GetConnectedKeyFramesCounter() {
@@ -105,6 +83,23 @@ public:
 
     /// 工厂构建模式，分配id 
     static std::shared_ptr<Frame> CreateFrame();
+
+private:
+    std::mutex pose_mutex_;          // Pose数据锁
+    SE3 pose_;                       // Tcw 形式Pose
+
+    // Lock for connected frames
+    std::mutex connectedframe_mutex_;
+    // Ordered connected keyframes from large weight to small
+    std::vector<Frame::Ptr> orderedConnectedKeyFrames_;
+    // Connected keyframes (has same observed mappoints) (weight>15 common mappoints) and the weight
+    std::unordered_map<Frame::Ptr, int> connectedKeyFramesCounter_;
+
+    // Add the connection of frame with weight to current frame
+    void AddConnection(Frame::Ptr frame, const int& weight);
+
+    // Sort the orderedConnectedFrames_
+    void ResortConnectedKeyframes();
 };
 
 }  // namespace myslam

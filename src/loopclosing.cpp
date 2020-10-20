@@ -221,8 +221,7 @@ float LoopClosing::ComputeMinGroupScore(const std::set<Frame::Ptr>& inputCandida
         float maxScore = kf->BoWScore_;
         Frame::Ptr frameWithLargestScore = kf;
 
-        for(auto& co_kf_cnt : kf->GetConnectedKeyFramesCounter()) {
-            auto co_kf = co_kf_cnt.first;
+        for(auto& co_kf : kf->GetOrderedConnectedKeyFramesVector(10)) {
             if(inputCandidateKF.count(co_kf)) {
                 groupScore += co_kf->BoWScore_;
                 if(co_kf->BoWScore_ > maxScore) {
@@ -325,9 +324,8 @@ bool LoopClosing::ComputeLoopPoseChange(const std::set<Frame::Ptr>& candidateKF)
         int inliners = 0;
         if (match_3d_2d_pts.size() >= 4) {
             inliners = CalcPoseChange(kf, match_3d_2d_pts, updatedCurrentPose);
+            LOG(INFO) << "Loop ID: " << kf->keyframe_id_ << " Min Distance: " << min_dis << " matched points: " << match_3d_2d_pts.size() << " inliners: " << inliners;
         }
-
-        LOG(INFO) << "Loop ID: " << kf->keyframe_id_ << " Min Distance: " << min_dis << " matched points: " << match_3d_2d_pts.size() << " inliners: " << inliners;
         // if (match_3d_2d_pts.size() < 20) {
         //     continue;
         // }

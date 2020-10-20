@@ -43,6 +43,8 @@ void Frame::SetKeyFrame() {
 
 void Frame::UpdateCovisibleConnections() {
 
+    std::unique_lock<std::mutex> lock(connectedframe_mutex_);
+
     // Calcualte the co-visible frames' count
     std::unordered_map<Frame::Ptr, int> KFCounter;
     for(auto& fe : features_left_) {
@@ -62,56 +64,51 @@ void Frame::UpdateCovisibleConnections() {
     if(KFCounter.empty())
         return;
 
-    // Filter out the connections whose weight less than 15
+    // Filter the connections whose weight larger than 15
     int maxCount = 0;
     Frame::Ptr maxCountKF;
-    // std::vector<std::pair<int, Frame::Ptr>> connectedKF;
-    std::list<std::pair<int, Frame::Ptr>> connectedKF;
+    connectedKeyFramesCounter_.clear();
+
     for(auto& kf : KFCounter) {
         if(kf.second >= 15) {
-            connectedKF.push_back(std::make_pair(kf.second, kf.first));
+            connectedKeyFramesCounter_[kf.first] = kf.second;
             kf.first->AddConnection(Ptr(this), kf.second);
         }
+        if(kf.second > maxCount) {
+            maxCount = kf.second;
+            maxCountKF = kf.first;
+        }
     }
-    if(connectedKF.empty()) {
-        connectedKF.push_back(std::make_pair(maxCount, maxCountKF));
+    if(connectedKeyFramesCounter_.empty()) {
+        connectedKeyFramesCounter_[maxCountKF] = maxCount;
         maxCountKF->AddConnection(Ptr(this), maxCount);
     }
 
-    std::unique_lock<std::mutex> lock(connectedframe_mutex_);
-
     // Sort the connections with weight
-    // std::sort(connectedKF.begin(), connectedKF.end());
-    // std::list<Frame::Ptr> tmpOrderedConnectedKeyFrames;
-    connectedKeyFramesCounter_.clear();
-    for(auto& kf : connectedKF) {
-        // tmpOrderedConnectedKeyFrames.push_front(kf.second);
-        connectedKeyFramesCounter_[kf.second] = kf.first;
-    }
-    // orderedConnectedKeyFrames_.clear();
-    // orderedConnectedKeyFrames_ = std::vector<Frame::Ptr>(tmpOrderedConnectedKeyFrames.begin(),
-    //                                                     tmpOrderedConnectedKeyFrames.end());
+    ResortConnectedKeyframes();
 }
 
 void Frame::AddConnection(Frame::Ptr frame, const int& weight) {
     std::unique_lock<std::mutex> lock(connectedframe_mutex_);
 
     connectedKeyFramesCounter_[frame] = weight;
-    // ResortConnectedKeyframes();
+    ResortConnectedKeyframes();
 }
 
-// void Frame::ResortConnectedKeyframes() {
-//     std::vector<std::pair<int, Frame::Ptr>> connectedKF;
-//     for(auto& kf : connectedKeyFramesCounter_) {
-//         connectedKF.push_back(std::make_pair(kf.second, kf.first));
-//     }
-
-//     std::sort(connectedKF.begin(), connectedKF.end());
-//     std::list<Frame::Ptr> tmpOrderedConnectedKeyFrames;
-//     for(auto& kf : connectedKF) {
-//         tmpOrderedConnectedKeyFrames.push_front(kf.second);
-//     }
-// }
+void Frame::ResortConnectedKeyframes() {
+    std::vector<std::pair<int, Frame::Ptr>> connectedKF;
+    for(auto& kf : connectedKeyFramesCounter_) {
+        connectedKF.push_back(std::make_pair(kf.second, kf.first));
+    }
+    std::sort(connectedKF.begin(), connectedKF.end());
+    std::list<Frame::Ptr> tmpOrderedConnectedKeyFrames;
+    for(auto& kf : connectedKF) {
+        tmpOrderedConnectedKeyFrames.push_front(kf.second);
+    }
+    orderedConnectedKeyFrames_.clear();
+    orderedConnectedKeyFrames_ = std::vector<Frame::Ptr>(tmpOrderedConnectedKeyFrames.begin(),
+                                                         tmpOrderedConnectedKeyFrames.end());
+}
 
 std::set<Frame::Ptr> Frame::GetConnectedKeyFramesSet() {
     std::unique_lock<std::mutex> lock(connectedframe_mutex_);
@@ -121,6 +118,18 @@ std::set<Frame::Ptr> Frame::GetConnectedKeyFramesSet() {
         tmp.insert(kf.first);
     }
     return tmp;
+}
+
+std::vector<Frame::Ptr> Frame::GetOrderedConnectedKeyFramesVector(unsigned int size) {
+    std::unique_lock<std::mutex> lock(connectedframe_mutex_);
+
+    if(orderedConnectedKeyFrames_.size() <= size) {
+        return orderedConnectedKeyFrames_;
+    }
+    else {
+        return std::vector<Frame::Ptr>(orderedConnectedKeyFrames_.begin(), 
+                                       orderedConnectedKeyFrames_.begin() + size);
+    }
 }
 
 
