@@ -4,11 +4,11 @@ This repo is currently a VO (Visual Odometry) with local backend for stereo stre
 
 Currently it could track the camera's poses and the mappoints in space and render them with pangolin. The loop closure detection is still under development.
 
-![screenshot](png/screenshot.png)
+<img src="png/screenshot.png" width="400"/>
 
 ## Requirements
 
-* C++ 11
+* Ubuntu: 18.04
 * CMake
 * Opencv: 3.1
 * Pangolin: commit [1ec721d](https://github.com/stevenlovegrove/Pangolin/tree/1ec721d59ff6b799b9c24b8817f3b7ad2c929b83)
@@ -25,7 +25,7 @@ Currently it could track the camera's poses and the mappoints in space and rende
 
 This repos has front end and backend. VO (front end) read frames and calculate the poses of camera, build map. Backend optimizes the keyframes and mappoints. The workflow is as the following image.
 
-![workflow](png/workflow.drawio.png)
+<img src="png/workflow.drawio.png" width="500"/>
 
 ### Front end
 
